@@ -1,12 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}{{ category }} - Certificate Generator{% endblock %}
+{% block title %}{{ category }} - CertPro{% endblock %}
 
 {% block content %}
 <div class="row">
     <div class="col-md-12">
         <h1 class="mb-4">{{ category }} Templates</h1>
-        <a href="{{ url_for('index') }}" class="btn btn-secondary mb-3">← Back to Categories</a>
+        <a href="{{ url_for('index') }}" class="btn btn-secondary mb-3">
+            ← Back to Categories
+        </a>
     </div>
 </div>
 
@@ -14,16 +16,35 @@
     {% if templates %}
         {% for template in templates %}
         <div class="col-md-4 mb-4">
-            <div class="card">
-                <img src="{{ url_for('static', filename='templates/' + template.image_path) }}" class="card-img-top" alt="{{ template.name }}">
-                <div class="card-body">
+            <div class="card h-100 shadow-sm">
+                <img 
+                    src="{{ url_for('static', filename='templates/' + template.image_path) }}" 
+                    class="card-img-top" 
+                    alt="{{ template.name }}"
+                >
+                <div class="card-body d-flex flex-column">
                     <h5 class="card-title">{{ template.name }}</h5>
-                    <p class="card-text">Price: ₹{{ template.price }}</p>
-                    {% if current_user.is_authenticated %}
-                        <a href="{{ url_for('fill_template', template_id=template.id) }}" class="btn btn-primary">Use Template</a>
-                    {% else %}
-                        <a href="{{ url_for('login') }}" class="btn btn-primary">Login to Use</a>
-                    {% endif %}
+                    <p class="card-text mb-2">
+                        <strong>Price:</strong> ₹{{ "%.2f"|format(template.price) }}
+                    </p>
+
+                    <div class="mt-auto">
+                        {% if current_user.is_authenticated %}
+                            <a 
+                                href="{{ url_for('fill_template', template_id=template.id) }}" 
+                                class="btn btn-primary w-100"
+                            >
+                                Use Template
+                            </a>
+                        {% else %}
+                            <a 
+                                href="{{ url_for('login') }}" 
+                                class="btn btn-primary w-100"
+                            >
+                                Login to Use
+                            </a>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>

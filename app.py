@@ -1,23 +1,63 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
-from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from werkzeug.utils import secure_filename
-from werkzeug.security import generate_password_hash, check_password_hash
-from PIL import Image, ImageDraw, ImageFont, ImageOps
-from config import Config
-from models import db, User, Template, TemplateField, Transaction, ReferralCode, ReferralRedemption
 import json
 import string
 import random
 from datetime import datetime
 
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    flash,
+    jsonify,
+    send_from_directory,
+    session,
+)
+from flask_login import (
+    LoginManager,
+    login_user,
+    logout_user,
+    login_required,
+    current_user,
+)
+from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
+from PIL import Image, ImageDraw, ImageFont, ImageOps
+
+from config import Config
+from models import (
+    db,
+    User,
+    Template,
+    TemplateField,
+    Transaction,
+    ReferralCode,
+    ReferralRedemption,
+)
+
+import razorpay
+from razorpay.errors import SignatureVerificationError
+
+
+# ------------------------------------------------------------------------------
+# App / DB / Login setup
+# ------------------------------------------------------------------------------
+
 app = Flask(__name__)
 app.config.from_object(Config)
 
 db.init_app(app)
+
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'login'
+login_manager.login_view = "login"
+
+# Razorpay client
+razorpay_client = razorpay.Client(
+    auth=(Config.RAZORPAY_KEY_ID, Config.RAZORPAY_KEY_SECRET)
+)
 
 
 @login_manager.user_loader
@@ -25,428 +65,597 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
-def generate_referral_code(length=8):
+# ------------------------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------------------------
+
+ALLOWED_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg"}
+
+
+def allowed_file(filename: str) -> bool:
+    return (
+        "." in filename
+        and filename.rsplit(".", 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
+    )
+
+
+def generate_referral_code(length: int = 8) -> str:
+    """Generate a unique referral code."""
     chars = string.ascii_uppercase + string.digits
     while True:
-        code = ''.join(random.choices(chars, k=length))
+        code = "".join(random.choice(chars) for _ in range(length))
         if not ReferralCode.query.filter_by(code=code).first():
             return code
 
 
-def validate_referral_code(code_str):
-    ref = ReferralCode.query.filter_by(code=code_str, is_active=True).first()
-    if not ref:
-        return None, "Invalid referral code"
-
-    if ref.expires_at and ref.expires_at < datetime.utcnow():
-        return None, "Referral code expired"
-
-    if ref.max_uses is not None and ref.used_count >= ref.max_uses:
-        return None, "Referral code usage limit reached"
-
-    return ref, None
-
-
-def redeem_referral_code_for_user(referral_code, user):
-    existing = ReferralRedemption.query.filter_by(
-        referral_code_id=referral_code.id,
-        redeemed_by_user_id=user.id
-    ).first()
-    if existing:
-        return False, "You have already used this referral code"
-
-    reward = referral_code.reward_amount or 0.0
-    user.wallet_balance = (user.wallet_balance or 0.0) + reward
-
-    referral_code.used_count += 1
-
-    redemption = ReferralRedemption(
-        referral_code_id=referral_code.id,
-        redeemed_by_user_id=user.id,
-        reward_amount=reward
-    )
-
-    tx = Transaction(
-        user_id=user.id,
-        amount=reward,
-        transaction_type='credit',
-        description=f"Referral reward via code {referral_code.code}"
-    )
-
-    db.session.add(redemption)
-    db.session.add(tx)
-    db.session.commit()
-
-    # CURRENCY CHANGED TO ₹
-    return True, f"₹{reward:.2f} added to your wallet via referral."
-
-
-# Ensure directories exist
-os.makedirs(app.config['TEMPLATE_FOLDER'], exist_ok=True)
-os.makedirs(app.config['GENERATED_FOLDER'], exist_ok=True)
-
-# Initialize database and default admin
-with app.app_context():
+@app.before_first_request
+def create_tables():
     db.create_all()
-    if not User.query.filter_by(email='admin@example.com').first():
-        admin = User(
-            email='admin@example.com',
-            password=generate_password_hash('admin123'),
-            is_admin=True,
-            wallet_balance=0.0
-        )
-        db.session.add(admin)
-        db.session.commit()
 
 
-# Routes
-@app.route('/')
-def index():
-    # NEW: redirect to login first if user not logged in
-    if not current_user.is_authenticated:
-        return redirect(url_for('login'))
+# ------------------------------------------------------------------------------
+# Auth routes
+# ------------------------------------------------------------------------------
 
-    categories = db.session.query(Template.category).distinct().all()
-    categories = [c[0] for c in categories]
-    templates = Template.query.all()
-    return render_template('index.html', categories=categories, templates=templates)
-
-
-@app.route('/category/<category>')
-def category(category):
-    templates = Template.query.filter_by(category=category).all()
-    return render_template('category.html', category=category, templates=templates)
-
-
-@app.route('/register', methods=['GET', 'POST'])
+@app.route("/register", methods=["GET", "POST"])
 def register():
-    if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        referral_code_str = request.form.get('referral_code')
+    if current_user.is_authenticated:
+        return redirect(url_for("index"))
 
-        if User.query.filter_by(email=email).first():
-            flash('Email already exists', 'danger')
-            return redirect(url_for('register'))
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "").strip()
+        referral_code_input = request.form.get("referral_code", "").strip()
 
-        user = User(
-            email=email,
-            password=generate_password_hash(password),
-            is_admin=False,
-            wallet_balance=0.0
-        )
+        if not email or not password:
+            flash("Email and password are required.", "danger")
+            return redirect(url_for("register"))
 
-        if referral_code_str:
-            ref, err = validate_referral_code(referral_code_str.strip())
-            if err:
-                flash(err, 'warning')
-                db.session.add(user)
+        existing = User.query.filter_by(email=email).first()
+        if existing:
+            flash("Email already registered. Please log in.", "warning")
+            return redirect(url_for("login"))
+
+        hashed_password = generate_password_hash(password)
+        user = User(email=email, password=hashed_password)
+
+        # Handle referral code if provided
+        if referral_code_input:
+            code_str = referral_code_input.strip().upper()
+            rc = ReferralCode.query.filter_by(code=code_str, is_active=True).first()
+
+            if rc:
+                # Check expiry
+                if rc.expires_at and rc.expires_at < datetime.utcnow():
+                    flash("Referral code has expired.", "warning")
+                elif rc.max_uses is not None and rc.used_count >= rc.max_uses:
+                    flash("Referral code has reached maximum uses.", "warning")
+                else:
+                    # Valid referral
+                    user.referred_by = rc.owner
+                    # Credit wallet of the new user
+                    user.wallet_balance += rc.reward_amount
+
+                    # Log redemption
+                    redemption = ReferralRedemption(
+                        referral_code=rc,
+                        redeemed_by_user=user,
+                        reward_amount=rc.reward_amount,
+                    )
+                    db.session.add(redemption)
+
+                    # Update referral code stats
+                    rc.used_count += 1
+                    if rc.max_uses is not None and rc.used_count >= rc.max_uses:
+                        rc.is_active = False
             else:
-                user.referred_by_id = ref.owner_id
-                db.session.add(user)
-                db.session.flush()
-                ok, msg = redeem_referral_code_for_user(ref, user)
-                flash(msg, 'success' if ok else 'warning')
-        else:
-            db.session.add(user)
+                flash("Invalid referral code.", "warning")
 
+        db.session.add(user)
         db.session.commit()
 
-        flash('Registration successful! Please login.', 'success')
-        return redirect(url_for('login'))
+        flash("Registration successful. Please log in.", "success")
+        return redirect(url_for("login"))
 
-    return render_template('register.html')
+    return render_template("register.html")
 
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
+    if current_user.is_authenticated:
+        return redirect(url_for("index"))
+
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "").strip()
 
         user = User.query.filter_by(email=email).first()
         if user and check_password_hash(user.password, password):
             login_user(user)
-            flash('Logged in successfully.', 'success')
-            return redirect(url_for('index'))
+            flash("Logged in successfully.", "success")
+            next_page = request.args.get("next")
+            return redirect(next_page or url_for("index"))
+        else:
+            flash("Invalid email or password.", "danger")
 
-        flash('Invalid email or password', 'danger')
-
-    return render_template('login.html')
-
-
-# NEW: Forgot Password route
-@app.route('/forgot-password', methods=['GET', 'POST'])
-def forgot_password():
-    if request.method == 'POST':
-        email = request.form.get('email')
-        new_password = request.form.get('new_password')
-        confirm_password = request.form.get('confirm_password')
-
-        if not email or not new_password or not confirm_password:
-            flash('Please fill all fields.', 'warning')
-            return redirect(url_for('forgot_password'))
-
-        if new_password != confirm_password:
-            flash('Passwords do not match.', 'danger')
-            return redirect(url_for('forgot_password'))
-
-        user = User.query.filter_by(email=email).first()
-        if not user:
-            flash('No account found with that email.', 'danger')
-            return redirect(url_for('forgot_password'))
-
-        # DEMO-ONLY reset: no email verification
-        user.password = generate_password_hash(new_password)
-        db.session.commit()
-
-        flash('Password reset successful! You can now log in with your new password.', 'success')
-        return redirect(url_for('login'))
-
-    return render_template('forgot_password.html')
+    return render_template("login.html")
 
 
-@app.route('/logout')
+@app.route("/logout")
 @login_required
 def logout():
     logout_user()
-    flash('Logged out successfully.', 'success')
-    return redirect(url_for('index'))
+    flash("You have been logged out.", "info")
+    return redirect(url_for("login"))
 
 
-@app.route('/wallet', methods=['GET', 'POST'])
-@login_required
-def wallet():
-    if request.method == 'POST':
-        try:
-            amount = float(request.form.get('amount'))
-        except (TypeError, ValueError):
-            flash('Invalid amount.', 'danger')
-            return redirect(url_for('wallet'))
+@app.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        new_password = request.form.get("new_password", "").strip()
+        confirm_password = request.form.get("confirm_password", "").strip()
 
-        if amount <= 0:
-            flash('Amount must be greater than zero.', 'danger')
-            return redirect(url_for('wallet'))
+        if not email or not new_password:
+            flash("Email and new password are required.", "danger")
+            return redirect(url_for("forgot_password"))
 
-        current_user.wallet_balance += amount
-        transaction = Transaction(
-            user_id=current_user.id,
-            amount=amount,
-            transaction_type='credit',
-            description='Wallet recharge'
-        )
-        db.session.add(transaction)
+        if new_password != confirm_password:
+            flash("Passwords do not match.", "danger")
+            return redirect(url_for("forgot_password"))
+
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            flash("No account found with that email.", "warning")
+            return redirect(url_for("forgot_password"))
+
+        user.password = generate_password_hash(new_password)
         db.session.commit()
 
-        # CURRENCY CHANGED TO ₹
-        flash(f'Wallet recharged with ₹{amount:.2f}', 'success')
-        return redirect(url_for('wallet'))
+        flash("Password updated successfully. Please log in.", "success")
+        return redirect(url_for("login"))
 
-    transactions = Transaction.query.filter_by(user_id=current_user.id).order_by(Transaction.timestamp.desc()).all()
-    return render_template('wallet.html', transactions=transactions)
+    return render_template("forgot_password.html")
 
 
-# Admin Routes
-@app.route('/admin/templates')
+# ------------------------------------------------------------------------------
+# Public / user routes
+# ------------------------------------------------------------------------------
+
+@app.route("/")
+def index():
+    # Distinct categories for the home page
+    categories = (
+        db.session.query(Template.category)
+        .distinct()
+        .order_by(Template.category.asc())
+        .all()
+    )
+    categories = [c[0] for c in categories]
+    return render_template("index.html", categories=categories)
+
+
+@app.route("/category/<category>")
+def category(category):
+    templates = Template.query.filter_by(category=category).all()
+    return render_template("category.html", category=category, templates=templates)
+
+
+# ------------------------------------------------------------------------------
+# Wallet + Razorpay integration
+# ------------------------------------------------------------------------------
+
+@app.route("/wallet", methods=["GET"])
+@login_required
+def wallet():
+    transactions = (
+        Transaction.query.filter_by(user_id=current_user.id)
+        .order_by(Transaction.timestamp.desc())
+        .all()
+    )
+    return render_template("wallet.html", transactions=transactions)
+
+
+@app.route("/add_money", methods=["POST"])
+@login_required
+def add_money():
+    try:
+        amount = float(request.form.get("amount"))
+    except (TypeError, ValueError):
+        flash("Invalid amount.", "danger")
+        return redirect(url_for("wallet"))
+
+    if amount <= 0:
+        flash("Amount must be greater than zero.", "danger")
+        return redirect(url_for("wallet"))
+
+    amount_paise = int(amount * 100)
+
+    order = razorpay_client.order.create(
+        {
+            "amount": amount_paise,
+            "currency": "INR",
+            "payment_capture": "1",
+            "notes": {
+                "purpose": "wallet_topup",
+                "user_id": str(current_user.id),
+            },
+        }
+    )
+
+    # Store in session for later verification
+    session["wallet_topup_amount"] = amount
+    session["wallet_order_id"] = order["id"]
+
+    return render_template(
+        "pay.html",
+        razorpay_key_id=Config.RAZORPAY_KEY_ID,
+        razorpay_order_id=order["id"],
+        amount=amount,
+        amount_paise=amount_paise,
+        user=current_user,
+    )
+
+
+@app.route("/payment/verify", methods=["POST"])
+@login_required
+def payment_verify():
+    data = request.form
+
+    params_dict = {
+        "razorpay_order_id": data.get("razorpay_order_id"),
+        "razorpay_payment_id": data.get("razorpay_payment_id"),
+        "razorpay_signature": data.get("razorpay_signature"),
+    }
+
+    try:
+        razorpay_client.utility.verify_payment_signature(params_dict)
+    except SignatureVerificationError:
+        flash(
+            "Payment verification failed. If money was deducted, contact support.",
+            "danger",
+        )
+        return redirect(url_for("wallet"))
+
+    amount = session.pop("wallet_topup_amount", None)
+    session_order_id = session.pop("wallet_order_id", None)
+
+    if not amount or session_order_id != params_dict["razorpay_order_id"]:
+        flash(
+            "Payment verified but session mismatched or expired. Contact support.",
+            "warning",
+        )
+        return redirect(url_for("wallet"))
+
+    # Credit wallet
+    current_user.wallet_balance += amount
+    transaction = Transaction(
+        user_id=current_user.id,
+        amount=amount,
+        transaction_type="credit",
+        description="Wallet recharge via Razorpay",
+    )
+    db.session.add(transaction)
+    db.session.commit()
+
+    flash(f"Payment successful! Wallet recharged with ₹{amount:.2f}", "success")
+    return redirect(url_for("wallet"))
+
+
+# ------------------------------------------------------------------------------
+# Admin: Templates management
+# ------------------------------------------------------------------------------
+
+@app.route("/admin/templates")
 @login_required
 def admin_templates():
     if not current_user.is_admin:
-        flash('Access denied', 'danger')
-        return redirect(url_for('index'))
+        flash("Access denied.", "danger")
+        return redirect(url_for("index"))
 
-    templates = Template.query.all()
-    return render_template('admin_templates.html', templates=templates)
+    templates = Template.query.order_by(Template.created_at.desc()).all() if hasattr(Template, "created_at") else Template.query.all()
+    return render_template("admin_templates.html", templates=templates)
 
 
-@app.route('/admin/templates/new', methods=['GET', 'POST'])
+@app.route("/admin/templates/new", methods=["GET", "POST"])
 @login_required
 def admin_new_template():
     if not current_user.is_admin:
-        flash('Access denied', 'danger')
-        return redirect(url_for('index'))
+        flash("Access denied.", "danger")
+        return redirect(url_for("index"))
 
-    if request.method == 'POST':
-        name = request.form.get('name')
-        category = request.form.get('category')
-        price = float(request.form.get('price', 0))
-        file = request.files.get('template_image')
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        category = request.form.get("category", "").strip()
+        price_raw = request.form.get("price", "0").strip()
+        bg_image = request.files.get("image")
 
-        if file and file.filename:
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(app.config['TEMPLATE_FOLDER'], filename)
-            file.save(filepath)
+        if not name or not category or not bg_image:
+            flash("Name, category and image are required.", "danger")
+            return redirect(url_for("admin_new_template"))
 
-            template = Template(
-                name=name,
-                category=category,
-                price=price,
-                image_path=filename
-            )
-            db.session.add(template)
-            db.session.commit()
+        try:
+            price = float(price_raw)
+        except ValueError:
+            price = 0.0
 
-            flash('Template created successfully!', 'success')
-            return redirect(url_for('admin_template_builder', template_id=template.id))
+        if not allowed_file(bg_image.filename):
+            flash("Invalid image format. Use PNG/JPG/JPEG.", "danger")
+            return redirect(url_for("admin_new_template"))
 
-    return render_template('admin_new_template.html')
+        filename = secure_filename(bg_image.filename)
+        templates_folder = Config.TEMPLATE_FOLDER
+        os.makedirs(templates_folder, exist_ok=True)
+        save_path = os.path.join(templates_folder, filename)
+        bg_image.save(save_path)
+
+        template = Template(
+            name=name,
+            category=category,
+            price=price,
+            image_path=filename,
+        )
+        db.session.add(template)
+        db.session.commit()
+
+        flash("Template created. Now configure its fields.", "success")
+        return redirect(url_for("admin_template_builder", template_id=template.id))
+
+    return render_template("admin_new_template.html")
 
 
-@app.route('/admin/templates/<int:template_id>/builder')
+@app.route("/admin/templates/<int:template_id>/builder")
 @login_required
 def admin_template_builder(template_id):
     if not current_user.is_admin:
-        flash('Access denied', 'danger')
-        return redirect(url_for('index'))
+        flash("Access denied.", "danger")
+        return redirect(url_for("index"))
 
     template = Template.query.get_or_404(template_id)
-    fields = TemplateField.query.filter_by(template_id=template_id).all()
-    return render_template('admin_template_builder.html', template=template, fields=fields)
+    fields = TemplateField.query.filter_by(template_id=template.id).all()
+    return render_template(
+        "admin_template_builder.html", template=template, fields=fields
+    )
 
 
-@app.route('/admin/templates/<int:template_id>/fields', methods=['POST'])
+@app.route("/admin/templates/<int:template_id>/fields", methods=["POST"])
 @login_required
-def add_template_field(template_id):
+def admin_add_field(template_id):
     if not current_user.is_admin:
-        return jsonify({'error': 'Access denied'}), 403
+        return jsonify({"error": "Unauthorized"}), 403
 
-    data = request.json
+    template = Template.query.get_or_404(template_id)
+
+    try:
+        data = request.get_json() or {}
+    except Exception:
+        return jsonify({"error": "Invalid JSON"}), 400
+
+    field_name = data.get("field_name", "").strip()
+    field_type = data.get("field_type")
+    x_position = data.get("x_position")
+    y_position = data.get("y_position")
+    font_size = data.get("font_size")
+    font_color = data.get("font_color")
+    width = data.get("width")
+    height = data.get("height")
+    shape = data.get("shape")
+
+    if not field_name or not field_type or x_position is None or y_position is None:
+        return jsonify({"error": "Missing required fields"}), 400
+
     field = TemplateField(
-        template_id=template_id,
-        field_name=data['field_name'],
-        field_type=data['field_type'],
-        x_position=data['x_position'],
-        y_position=data['y_position'],
-        font_size=data.get('font_size'),
-        font_color=data.get('font_color'),
-        width=data.get('width'),
-        height=data.get('height'),
-        shape=data.get('shape')
+        template_id=template.id,
+        field_name=field_name,
+        field_type=field_type,
+        x_position=int(x_position),
+        y_position=int(y_position),
+        font_size=int(font_size) if font_size else None,
+        font_color=font_color,
+        width=int(width) if width else None,
+        height=int(height) if height else None,
+        shape=shape,
     )
     db.session.add(field)
     db.session.commit()
 
-    return jsonify({'success': True, 'field_id': field.id})
+    return jsonify({"message": "Field added", "field_id": field.id}), 201
 
 
-@app.route('/admin/templates/<int:template_id>/fields/<int:field_id>', methods=['DELETE'])
+@app.route(
+    "/admin/templates/<int:template_id>/fields/<int:field_id>", methods=["DELETE"]
+)
 @login_required
-def delete_template_field(template_id, field_id):
+def admin_delete_field(template_id, field_id):
     if not current_user.is_admin:
-        return jsonify({'error': 'Access denied'}), 403
+        return jsonify({"error": "Unauthorized"}), 403
 
-    field = TemplateField.query.get_or_404(field_id)
+    field = TemplateField.query.filter_by(
+        id=field_id, template_id=template_id
+    ).first_or_404()
     db.session.delete(field)
     db.session.commit()
 
-    return jsonify({'success': True})
+    return jsonify({"message": "Field deleted"}), 200
 
 
-@app.route('/admin/referrals', methods=['GET', 'POST'])
+# ------------------------------------------------------------------------------
+# Admin: Referral codes
+# ------------------------------------------------------------------------------
+
+@app.route("/admin/referrals", methods=["GET", "POST"])
 @login_required
 def admin_referrals():
     if not current_user.is_admin:
-        flash('Access denied', 'danger')
-        return redirect(url_for('index'))
+        flash("Access denied.", "danger")
+        return redirect(url_for("index"))
 
-    if request.method == 'POST':
-        user_email = request.form.get('user_email')
-        reward_amount = float(request.form.get('reward_amount') or 0)
-        max_uses = request.form.get('max_uses')
-        expires_at = request.form.get('expires_at')
+    if request.method == "POST":
+        user_email = request.form.get("user_email", "").strip().lower()
+        reward_amount_raw = request.form.get("reward_amount", "0").strip()
+        max_uses_raw = request.form.get("max_uses", "").strip()
+        expires_at_raw = request.form.get("expires_at", "").strip()
 
-        user = User.query.filter_by(email=user_email).first()
-        if not user:
-            flash('User not found', 'danger')
-            return redirect(url_for('admin_referrals'))
+        owner = User.query.filter_by(email=user_email).first()
+        if not owner:
+            flash("No user found with that email.", "danger")
+            return redirect(url_for("admin_referrals"))
 
-        max_uses_val = int(max_uses) if max_uses else None
-        expires_dt = datetime.strptime(expires_at, '%Y-%m-%d') if expires_at else None
+        try:
+            reward_amount = float(reward_amount_raw)
+        except ValueError:
+            reward_amount = 0.0
+
+        max_uses = None
+        if max_uses_raw:
+            try:
+                max_uses = int(max_uses_raw)
+            except ValueError:
+                max_uses = None
+
+        expires_at = None
+        if expires_at_raw:
+            try:
+                # Date input is YYYY-MM-DD
+                expires_at = datetime.strptime(expires_at_raw, "%Y-%m-%d")
+            except ValueError:
+                expires_at = None
 
         code_str = generate_referral_code()
 
-        ref = ReferralCode(
+        rc = ReferralCode(
             code=code_str,
-            owner_id=user.id,
+            owner=owner,
             reward_amount=reward_amount,
-            max_uses=max_uses_val,
-            expires_at=expires_dt,
-            is_active=True
+            max_uses=max_uses,
+            expires_at=expires_at,
+            is_active=True,
         )
-        db.session.add(ref)
+
+        db.session.add(rc)
         db.session.commit()
 
-        flash(f'Referral code {code_str} created for {user.email}', 'success')
-        return redirect(url_for('admin_referrals'))
+        flash(f"Referral code {code_str} created successfully.", "success")
+        return redirect(url_for("admin_referrals"))
 
     codes = ReferralCode.query.order_by(ReferralCode.created_at.desc()).all()
-    return render_template('admin_referrals.html', codes=codes)
+    return render_template("admin_referrals.html", codes=codes)
 
 
-# User Template Routes
-@app.route('/templates/<int:template_id>', methods=['GET', 'POST'])
+# ------------------------------------------------------------------------------
+# Certificate generation
+# ------------------------------------------------------------------------------
+
+@app.route("/template/<int:template_id>/fill", methods=["GET", "POST"])
 @login_required
 def fill_template(template_id):
     template = Template.query.get_or_404(template_id)
-    fields = TemplateField.query.filter_by(template_id=template_id).all()
+    fields = TemplateField.query.filter_by(template_id=template.id).all()
 
-    if request.method == 'POST':
+    if request.method == "POST":
+        # Check wallet balance
         if current_user.wallet_balance < template.price:
-            flash('Insufficient wallet balance. Please recharge your wallet.', 'danger')
-            return redirect(url_for('wallet'))
+            flash("Insufficient balance. Please add money to your wallet.", "danger")
+            return redirect(url_for("wallet"))
 
+        # Load base image
+        base_path = os.path.join(Config.TEMPLATE_FOLDER, template.image_path)
+        if not os.path.exists(base_path):
+            flash("Template image not found on server.", "danger")
+            return redirect(url_for("category", category=template.category))
+
+        base_image = Image.open(base_path).convert("RGBA")
+        draw = ImageDraw.Draw(base_image)
+
+        font_path = os.path.join("fonts", "Roboto.ttf")
+        if not os.path.exists(font_path):
+            font_path = None  # Pillow will fallback
+
+        for field in fields:
+            if field.field_type == "text":
+                text_value = request.form.get(field.field_name, "").strip()
+                if not text_value:
+                    continue
+
+                font_size = field.font_size or 36
+                if font_path:
+                    font = ImageFont.truetype(font_path, font_size)
+                else:
+                    font = ImageFont.load_default()
+
+                color = field.font_color or "#000000"
+                draw.text(
+                    (field.x_position, field.y_position),
+                    text_value,
+                    fill=color,
+                    font=font,
+                )
+
+            elif field.field_type == "image":
+                file_obj = request.files.get(field.field_name)
+                if not file_obj or file_obj.filename == "":
+                    continue
+                if not allowed_file(file_obj.filename):
+                    continue
+
+                img = Image.open(file_obj).convert("RGBA")
+                w = field.width or img.width
+                h = field.height or img.height
+                img = img.resize((w, h))
+
+                # Handle circle shape
+                if field.shape == "circle":
+                    mask = Image.new("L", (w, h), 0)
+                    mask_draw = ImageDraw.Draw(mask)
+                    mask_draw.ellipse((0, 0, w, h), fill=255)
+                    base_image.paste(
+                        img,
+                        (field.x_position, field.y_position),
+                        mask=mask,
+                    )
+                else:
+                    base_image.paste(
+                        img,
+                        (field.x_position, field.y_position),
+                        img,
+                    )
+
+        # Save generated certificate
+        os.makedirs(Config.GENERATED_FOLDER, exist_ok=True)
+        filename = f"certificate_{current_user.id}_{template.id}_{int(datetime.utcnow().timestamp())}.png"
+        output_path = os.path.join(Config.GENERATED_FOLDER, filename)
+        base_image.save(output_path)
+
+        # Deduct wallet
         current_user.wallet_balance -= template.price
         transaction = Transaction(
             user_id=current_user.id,
             amount=template.price,
-            transaction_type='debit',
-            description=f'Purchase of template: {template.name}'
+            transaction_type="debit",
+            description=f"Certificate purchase - {template.name}",
         )
         db.session.add(transaction)
-
-        data = request.form.to_dict()
-        image = Image.open(os.path.join(app.config['TEMPLATE_FOLDER'], template.image_path)).convert('RGBA')
-        draw = ImageDraw.Draw(image)
-
-        for field in fields:
-            if field.field_type == 'text':
-                text = data.get(field.field_name, '')
-                font_path = os.path.join(os.path.dirname(__file__), 'static', 'fonts', 'arial.ttf')
-                font = ImageFont.truetype(font_path, field.font_size or 40)
-                draw.text((field.x_position, field.y_position), text, font=font, fill=field.font_color or 'black')
-            elif field.field_type == 'image':
-                if field.field_name in request.files:
-                    file = request.files[field.field_name]
-                    if file and file.filename:
-                        user_image = Image.open(file.stream).convert('RGBA')
-                        user_image = user_image.resize((field.width or 100, field.height or 100))
-
-                        if field.shape == 'circle':
-                            mask = Image.new('L', user_image.size, 0)
-                            mask_draw = ImageDraw.Draw(mask)
-                            mask_draw.ellipse((0, 0, user_image.size[0], user_image.size[1]), fill=255)
-                            user_image = ImageOps.fit(user_image, mask.size, centering=(0.5, 0.5))
-                            user_image.putalpha(mask)
-
-                        image.paste(user_image, (field.x_position, field.y_position), user_image)
-
-        output_filename = f"cert_{current_user.id}_{template.id}_{os.urandom(4).hex()}.png"
-        output_path = os.path.join(app.config['GENERATED_FOLDER'], output_filename)
-        image.save(output_path, 'PNG')
-
         db.session.commit()
 
-        # CURRENCY CHANGED TO ₹
-        flash(f'Certificate generated successfully! ₹{template.price:.2f} deducted from your wallet.', 'success')
-        return redirect(url_for('view_certificate', filename=output_filename))
+        flash(
+            f"Certificate generated successfully! ₹{template.price:.2f} deducted from your wallet.",
+            "success",
+        )
+        return redirect(url_for("view_certificate", filename=filename))
 
-    return render_template('fill_template.html', template=template, fields=fields)
+    return render_template("fill_template.html", template=template, fields=fields)
 
 
-@app.route('/generated/<filename>')
+@app.route("/generated/<filename>")
 @login_required
 def view_certificate(filename):
-    return send_from_directory(app.config['GENERATED_FOLDER'], filename)
+    return send_from_directory(Config.GENERATED_FOLDER, filename)
 
 
-if __name__ == '__main__':
+# ------------------------------------------------------------------------------
+# Main
+# ------------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    # For local debug only; on Render/Gunicorn, Procfile is used.
     app.run(debug=True)

@@ -86,7 +86,6 @@ def generate_referral_code(length: int = 8) -> str:
             return code
 
 
-@app.before_first_request
 def create_tables():
     db.create_all()
 
@@ -657,3 +656,4 @@ def view_certificate(filename):
 if __name__ == "__main__":
     # For local debug only; on Render/Gunicorn, Procfile is used.
     app.run(debug=True)
+

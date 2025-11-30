@@ -48,7 +48,7 @@ from razorpay.errors import SignatureVerificationError
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Ensure DB connections are pre-pinged to avoid "SSL connection has been closed" errors
+# Ensure DB connections are pre-pinged to avoid "SSL connection has been closed"
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
 }
@@ -72,6 +72,7 @@ def load_user(user_id):
 razorpay_client = razorpay.Client(
     auth=(Config.RAZORPAY_KEY_ID, Config.RAZORPAY_KEY_SECRET)
 )
+
 # 🔧 Create tables once at startup (Flask 3 compatible)
 with app.app_context():
     db.create_all()
@@ -100,10 +101,6 @@ def generate_referral_code(length: int = 8) -> str:
             return code
 
 
-def create_tables():
-    db.create_all()
-
-
 # ------------------------------------------------------------------------------
 # Auth routes
 # ------------------------------------------------------------------------------
@@ -127,6 +124,10 @@ def register():
         if existing:
             flash("Email already registered. Please log in.", "warning")
             return redirect(url_for("login"))
+
+        if password != confirm_password:
+            flash("Passwords do not match.", "danger")
+            return redirect(url_for("register"))
 
         hashed_password = generate_password_hash(password)
         user = User(email=email, password=hashed_password)
@@ -235,7 +236,7 @@ def forgot_password():
 # Wallet / Transactions
 # ------------------------------------------------------------------------------
 
-@app.route("/wallet")
+@app.route("/wallet", methods=["GET"])
 @login_required
 def wallet():
     transactions = (
@@ -256,118 +257,92 @@ def add_money():
         return redirect(url_for("wallet"))
 
     if amount <= 0:
-        flash("Amount must be positive.", "danger")
+        flash("Amount must be greater than zero.", "danger")
         return redirect(url_for("wallet"))
 
-    # Create Razorpay order
-    order_data = {
-        "amount": int(amount * 100),  # Convert to paise
-        "currency": "INR",
-        "payment_capture": 1,
-    }
-    razorpay_order = razorpay_client.order.create(order_data)
+    amount_paise = int(amount * 100)
 
-    session["order_id"] = razorpay_order["id"]
-    session["amount"] = amount
+    order = razorpay_client.order.create(
+        {
+            "amount": amount_paise,
+            "currency": "INR",
+            "payment_capture": "1",
+            "notes": {
+                "purpose": "wallet_topup",
+                "user_id": str(current_user.id),
+            },
+        }
+    )
 
+    # Store in session for later verification
+    session["wallet_topup_amount"] = amount
+    session["wallet_order_id"] = order["id"]
+
+    # Reload transactions for the wallet page
+    transactions = (
+        Transaction.query.filter_by(user_id=current_user.id)
+        .order_by(Transaction.timestamp.desc())
+        .all()
+    )
+
+    # Render wallet page with Razorpay checkout details
     return render_template(
         "wallet.html",
-        razorpay_order_id=razorpay_order["id"],
+        transactions=transactions,
         razorpay_key_id=Config.RAZORPAY_KEY_ID,
+        razorpay_order_id=order["id"],
         amount=amount,
+        amount_paise=amount_paise,
     )
 
 
-@app.route("/payment_callback", methods=["POST"])
-def payment_callback():
-    data = request.form.to_dict()
-    razorpay_payment_id = data.get("razorpay_payment_id")
-    razorpay_order_id = data.get("razorpay_order_id")
-    razorpay_signature = data.get("razorpay_signature")
+@app.route("/payment/verify", methods=["POST"])
+@login_required
+def payment_verify():
+    data = request.form
 
     params_dict = {
-        "razorpay_payment_id": razorpay_payment_id,
-        "razorpay_order_id": razorpay_order_id,
-        "razorpay_signature": razorpay_signature,
+        "razorpay_order_id": data.get("razorpay_order_id"),
+        "razorpay_payment_id": data.get("razorpay_payment_id"),
+        "razorpay_signature": data.get("razorpay_signature"),
     }
 
     try:
         razorpay_client.utility.verify_payment_signature(params_dict)
-
-        amount = session.get("amount")
-        if current_user.is_authenticated and amount:
-            current_user.wallet_balance += amount
-
-            transaction = Transaction(
-                user_id=current_user.id,
-                amount=amount,
-                transaction_type="credit",
-                description="Wallet Top-up",
-            )
-            db.session.add(transaction)
-            db.session.commit()
-
-        flash("Payment successful. Wallet updated.", "success")
     except SignatureVerificationError:
-        flash("Payment verification failed.", "danger")
+        flash(
+            "Payment verification failed. If money was deducted, contact support.",
+            "danger",
+        )
+        return redirect(url_for("wallet"))
 
+    amount = session.pop("wallet_topup_amount", None)
+    session_order_id = session.pop("wallet_order_id", None)
+
+    if not amount or session_order_id != params_dict["razorpay_order_id"]:
+        flash(
+            "Payment verified but session mismatched or expired. Contact support.",
+            "warning",
+        )
+        return redirect(url_for("wallet"))
+
+    # Credit wallet
+    current_user.wallet_balance += amount
+    transaction = Transaction(
+        user_id=current_user.id,
+        amount=amount,
+        transaction_type="credit",
+        description="Wallet recharge via Razorpay",
+    )
+    db.session.add(transaction)
+    db.session.commit()
+
+    flash(f"Payment successful! Wallet recharged with ₹{amount:.2f}", "success")
     return redirect(url_for("wallet"))
 
 
 # ------------------------------------------------------------------------------
-# Admin - Referral Codes
-# ------------------------------------------------------------------------------
-
-@app.route("/admin/referrals")
-@login_required
-def admin_referrals():
-    if not current_user.is_admin:
-        flash("Access denied.", "danger")
-        return redirect(url_for("index"))
-
-    referral_codes = ReferralCode.query.all()
-    return render_template("admin_referrals.html", referral_codes=referral_codes)
-
-
-@app.route("/admin/referrals/new", methods=["POST"])
-@login_required
-def admin_create_referral():
-    if not current_user.is_admin:
-        flash("Access denied.", "danger")
-        return redirect(url_for("index"))
-
-    owner_email = request.form.get("owner_email", "").strip().lower()
-    expiry_days = request.form.get("expiry_days", "").strip()
-    max_uses = request.form.get("max_uses", "").strip()
-
-    owner = User.query.filter_by(email=owner_email).first()
-    if not owner:
-        flash("Owner email not found.", "danger")
-        return redirect(url_for("admin_referrals"))
-
-    code = generate_referral_code()
-    expires_at = None
-    if expiry_days.isdigit():
-        expires_at = datetime.utcnow() + datetime.timedelta(days=int(expiry_days))
-
-    max_uses_int = int(max_uses) if max_uses.isdigit() else None
-
-    referral_code = ReferralCode(
-        code=code,
-        owner_id=owner.id,
-        expires_at=expires_at,
-        max_uses=max_uses_int,
-        is_active=True,
-    )
-    db.session.add(referral_code)
-    db.session.commit()
-
-    flash("Referral code created successfully.", "success")
-    return redirect(url_for("admin_referrals"))
-
-
-# ------------------------------------------------------------------------------
-# Templates (admin)
+# Admin: Templates management
 # ------------------------------------------------------------------------------
 
 @app.route("/admin/templates")
@@ -377,9 +352,7 @@ def admin_templates():
         flash("Access denied.", "danger")
         return redirect(url_for("index"))
 
-    templates = Template.query.order_by(
-        Template.created_at.desc()
-    ).all() if hasattr(Template, "created_at") else Template.query.all()
+    templates = Template.query.order_by(Template.created_at.desc()).all()
     return render_template("admin_templates.html", templates=templates)
 
 
@@ -405,9 +378,9 @@ def admin_new_template():
             return redirect(url_for("admin_new_template"))
 
         filename = secure_filename(image_file.filename)
-        save_path = os.path.join(Config.TEMPLATE_FOLDER, filename)
         os.makedirs(Config.TEMPLATE_FOLDER, exist_ok=True)
-        image_file.save(save_path)
+        image_path = os.path.join(Config.TEMPLATE_FOLDER, filename)
+        image_file.save(image_path)
 
         template = Template(
             name=name,
@@ -415,6 +388,7 @@ def admin_new_template():
             price=price,
             image_path=filename,
         )
+
         db.session.add(template)
         db.session.commit()
 
@@ -440,22 +414,21 @@ def admin_template_builder(template_id):
         # Clear existing fields
         TemplateField.query.filter_by(template_id=template.id).delete()
 
-        for f in fields:
-            new_field = TemplateField(
+        for field_data in fields:
+            field = TemplateField(
                 template_id=template.id,
-                name=f.get("name", ""),
-                x=f.get("x", 0),
-                y=f.get("y", 0),
-                font_size=f.get("font_size", 24),
-                color=f.get("color", "#000000"),
-                align=f.get("align", "left"),
+                name=field_data.get("name", ""),
+                x=field_data.get("x", 0),
+                y=field_data.get("y", 0),
+                font_size=field_data.get("font_size", 24),
+                color=field_data.get("color", "#000000"),
+                align=field_data.get("align", "left"),
             )
-            db.session.add(new_field)
+            db.session.add(field)
 
         db.session.commit()
         return jsonify({"status": "success"})
 
-    # GET
     fields = TemplateField.query.filter_by(template_id=template.id).all()
     return render_template(
         "admin_template_builder.html",
@@ -465,13 +438,67 @@ def admin_template_builder(template_id):
 
 
 # ------------------------------------------------------------------------------
-# Public routes
+# Admin: Referral Codes
+# ------------------------------------------------------------------------------
+
+@app.route("/admin/referrals")
+@login_required
+def admin_referrals():
+    if not current_user.is_admin:
+        flash("Access denied.", "danger")
+        return redirect(url_for("index"))
+
+    referral_codes = ReferralCode.query.order_by(ReferralCode.created_at.desc()).all()
+    return render_template("admin_referrals.html", referral_codes=referral_codes)
+
+
+@app.route("/admin/referrals/new", methods=["POST"])
+@login_required
+def admin_create_referral():
+    if not current_user.is_admin:
+        flash("Access denied.", "danger")
+        return redirect(url_for("index"))
+
+    owner_email = request.form.get("owner_email", "").strip().lower()
+    max_uses = request.form.get("max_uses", "").strip()
+    expires_in_days = request.form.get("expires_in_days", "").strip()
+
+    owner = User.query.filter_by(email=owner_email).first()
+    if not owner:
+        flash("User with that email not found.", "danger")
+        return redirect(url_for("admin_referrals"))
+
+    code = generate_referral_code()
+    referral_code = ReferralCode(
+        code=code,
+        owner=owner,
+        used_count=0,
+        is_active=True,
+    )
+
+    if max_uses.isdigit():
+        referral_code.max_uses = int(max_uses)
+
+    if expires_in_days.isdigit():
+        referral_code.expires_at = datetime.utcnow() + timedelta(
+            days=int(expires_in_days)
+        )
+
+    db.session.add(referral_code)
+    db.session.commit()
+
+    flash("Referral code created successfully.", "success")
+    return redirect(url_for("admin_referrals"))
+
+
+# ------------------------------------------------------------------------------
+# Public routes: index, category, fill template, etc.
 # ------------------------------------------------------------------------------
 
 @app.route("/")
 def index():
-    templates = Template.query.all()
-    categories = sorted(set(t.category for t in templates))
+    templates = Template.query.order_by(Template.created_at.desc()).all()
+    categories = sorted(set(t.category for t in templates if t.category))
     return render_template("index.html", templates=templates, categories=categories)
 
 
@@ -489,15 +516,15 @@ def fill_template(template_id):
 
     if request.method == "POST":
         if current_user.wallet_balance < template.price:
-            flash("Insufficient wallet balance.", "danger")
+            flash("Insufficient wallet balance. Please add money first.", "danger")
             return redirect(url_for("wallet"))
 
-        # Collect values
+        # Collect user-entered values
         field_values = {}
         for field in fields:
             field_values[field.name] = request.form.get(field.name, "")
 
-        # Generate certificate
+        # Open base image
         base_image_path = os.path.join(Config.TEMPLATE_FOLDER, template.image_path)
         base_image = Image.open(base_image_path).convert("RGBA")
 
@@ -529,11 +556,14 @@ def fill_template(template_id):
 
         # Save generated certificate
         os.makedirs(Config.GENERATED_FOLDER, exist_ok=True)
-        filename = f"certificate_{current_user.id}_{template.id}_{int(datetime.utcnow().timestamp())}.png"
+        filename = (
+            f"certificate_{current_user.id}_{template.id}_"
+            f"{int(datetime.utcnow().timestamp())}.png"
+        )
         output_path = os.path.join(Config.GENERATED_FOLDER, filename)
         base_image.save(output_path)
 
-        # Deduct wallet
+        # Deduct from wallet and log transaction
         current_user.wallet_balance -= template.price
         transaction = Transaction(
             user_id=current_user.id,

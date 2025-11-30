@@ -18,7 +18,7 @@
                 <img src="{{ url_for('static', filename='templates/' + template.image_path) }}" class="card-img-top" alt="{{ template.name }}">
                 <div class="card-body">
                     <h5 class="card-title">{{ template.name }}</h5>
-                    <p class="card-text">Price: ${{ template.price }}</p>
+                    <p class="card-text">Price: ₹{{ template.price }}</p>
                     {% if current_user.is_authenticated %}
                         <a href="{{ url_for('fill_template', template_id=template.id) }}" class="btn btn-primary">Use Template</a>
                     {% else %}
@@ -36,4 +36,5 @@
         </div>
     {% endif %}
 </div>
+
 {% endblock %}

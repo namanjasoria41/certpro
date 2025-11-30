@@ -150,9 +150,21 @@
             <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
     <img src="{{ url_for('static', filename='logo.png') }}"
          alt="Banner Hub Logo"
-         style="height: 36px; margin-right: 10px;">
-    <span style="font-weight:600;">BANNER HUB</span>
+         style="height: 38px; margin-right: 8px;">
+
+    <span style="
+        font-weight: 800;
+        font-size: 22px;
+        letter-spacing: 1px;
+        background: linear-gradient(90deg, #ffcc00, #ff8c00, #ff3d00);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-transform: uppercase;
+        ">
+        BANNER HUB
+    </span>
 </a>
+
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -263,5 +275,6 @@
 </body>
 
 </html>
+
 
 

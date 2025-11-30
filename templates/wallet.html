@@ -14,27 +14,27 @@
 
     <!-- Current Balance -->
     <div class="col-md-4 mb-4">
-        <div class="card bg-primary text-white shadow-lg">
-            <div class="card-body">
+        <div class="card shadow-sm">
+            <div class="card-body text-center">
                 <h5 class="card-title">Current Balance</h5>
-                <h2 class="display-4">₹{{ "%.2f"|format(current_user.wallet_balance) }}</h2>
-                <p class="mt-2">Use wallet balance to generate certificates instantly.</p>
+                <p class="display-6 mt-2 mb-0">
+                    ₹ {{ "%.2f"|format(current_user.wallet_balance or 0) }}
+                </p>
             </div>
         </div>
     </div>
-
 
     <!-- Add Money -->
     <div class="col-md-8 mb-4">
         <div class="card shadow-sm">
             <div class="card-body">
 
-                <h5 class="card-title mb-3">Add Money to Wallet</h5>
+                <h5 class="card-title">Add Money to Wallet</h5>
 
-                <form method="POST" action="{{ url_for('add_money') }}" class="row g-3">
+                <form method="POST" action="{{ url_for('add_money') }}" class="row g-3 mt-1">
                     <div class="col-md-8">
                         <label for="amount" class="form-label">Amount (₹)</label>
-                        <input type="number" step="1" min="1" id="amount" name="amount" 
+                        <input type="number" id="amount" name="amount" min="1" step="1"
                                class="form-control" placeholder="Enter amount" required>
                     </div>
 
@@ -76,6 +76,62 @@
     </div>
 </div>
 
+<!-- Razorpay Checkout Section -->
+{% if razorpay_order_id %}
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card border-success shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title mb-3">Complete Payment</h5>
+                <p class="mb-2">
+                    Order Amount:
+                    <strong>₹ {{ "%.2f"|format(amount) }}</strong>
+                </p>
+                <button id="rzp-button" class="btn btn-success">
+                    Pay with Razorpay
+                </button>
+
+                <!-- Hidden form for payment verification -->
+                <form id="razorpay-callback-form" method="POST" action="{{ url_for('payment_verify') }}" class="d-none">
+                    <input type="hidden" name="razorpay_payment_id" id="razorpay_payment_id">
+                    <input type="hidden" name="razorpay_order_id" id="razorpay_order_id">
+                    <input type="hidden" name="razorpay_signature" id="razorpay_signature">
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+    var options = {
+        "key": "{{ razorpay_key_id }}",
+        "amount": "{{ (amount * 100)|int }}",  // in paise
+        "currency": "INR",
+        "name": "CertPro Wallet Top-up",
+        "description": "Add money to wallet",
+        "order_id": "{{ razorpay_order_id }}",
+        "handler": function (response) {
+            document.getElementById('razorpay_payment_id').value = response.razorpay_payment_id;
+            document.getElementById('razorpay_order_id').value = response.razorpay_order_id;
+            document.getElementById('razorpay_signature').value = response.razorpay_signature;
+            document.getElementById('razorpay-callback-form').submit();
+        },
+        "prefill": {
+            "email": "{{ current_user.email or '' }}"
+        },
+        "theme": {
+            "color": "#0d6efd"
+        }
+    };
+
+    var rzp1 = new Razorpay(options);
+    document.getElementById('rzp-button').onclick = function(e){
+        rzp1.open();
+        e.preventDefault();
+    }
+</script>
+{% endif %}
 
 <!-- Transactions Table -->
 <div class="row mt-4">
@@ -90,28 +146,25 @@
                     <table class="table table-dark table-striped table-hover mt-3">
                         <thead>
                             <tr>
-                                <th>Amount (₹)</th>
+                                <th>Date &amp; Time</th>
                                 <th>Type</th>
+                                <th>Amount (₹)</th>
                                 <th>Description</th>
-                                <th>Date</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for t in transactions %}
+                            {% for txn in transactions %}
                             <tr>
+                                <td>{{ txn.timestamp.strftime("%d-%m-%Y %H:%M") if txn.timestamp else "-" }}</td>
                                 <td>
-                                    {% if t.transaction_type == 'credit' %}
-                                        <span class="text-success">+₹{{ "%.2f"|format(t.amount) }}</span>
+                                    {% if txn.transaction_type == 'credit' %}
+                                    <span class="badge bg-success">Credit</span>
                                     {% else %}
-                                        <span class="text-danger">-₹{{ "%.2f"|format(t.amount) }}</span>
+                                    <span class="badge bg-danger">Debit</span>
                                     {% endif %}
                                 </td>
-
-                                <td>{{ t.transaction_type|capitalize }}</td>
-
-                                <td>{{ t.description }}</td>
-
-                                <td>{{ t.timestamp.strftime("%Y-%m-%d %H:%M") }}</td>
+                                <td>{{ "%.2f"|format(txn.amount or 0) }}</td>
+                                <td>{{ txn.description or "-" }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

@@ -143,8 +143,13 @@
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
         <div class="container">
-            <a class="navbar-brand" href="{{ url_for('index') }}">⚡ CertGen</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
+    <img src="{{ url_for('static', filename='logo.png') }}"
+         alt="Banner Hub Logo"
+         style="height: 36px; margin-right: 10px;">
+    <span style="font-weight:600;">BANNER HUB</span>
+</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
@@ -254,3 +259,4 @@
 </body>
 
 </html>
+

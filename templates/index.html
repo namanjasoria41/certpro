@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Certificate Generator{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1 class="mb-4">Certificate Templates</h1>
+        <p class="lead">Browse our collection of professional certificate templates</p>
+    </div>
+</div>
+
+<div class="row">
+    {% if categories %}
+        {% for category in categories %}
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">{{ category }}</h5>
+                    <p class="card-text">View templates in this category</p>
+                    <a href="{{ url_for('category', category=category) }}" class="btn btn-primary">View Templates</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="col-md-12">
+            <div class="alert alert-info">
+                No templates available yet. Please check back later.
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

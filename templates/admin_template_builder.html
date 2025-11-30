@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}Template Builder - {{ template.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    #template-image {
+        cursor: crosshair;
+        max-width: 100%;
+        border: 2px solid #ddd;
+        display: block;
+    }
+    .field-item {
+        padding: 10px;
+        border: 1px solid #ddd;
+        margin-bottom: 10px;
+        border-radius: 4px;
+        background: #f8f9fa;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <h2 class="mb-3">{{ template.name }} - Field Builder</h2>
+        <div class="card mb-4">
+            <div class="card-body">
+                <p class="text-muted">Click on the certificate image to place fields</p>
+                <div style="position: relative; display: inline-block;">
+                    <img id="template-image" src="{{ url_for('static', filename='templates/' + template.image_path) }}" alt="{{ template.name }}">
+                </div>
+                <div id="coordinates" class="mt-2">
+                    <small class="text-muted">Click position: <span id="coord-display">-</span></small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Add New Field</h5>
+            </div>
+            <div class="card-body">
+                <form id="field-form">
+                    <div class="mb-3">
+                        <label class="form-label">Field Name</label>
+                        <input type="text" class="form-control" id="field-name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Field Type</label>
+                        <select class="form-control" id="field-type" required>
+                            <option value="text">Text</option>
+                            <option value="image">Image</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">X Position</label>
+                        <input type="number" class="form-control" id="x-position" required readonly>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Y Position</label>
+                        <input type="number" class="form-control" id="y-position" required readonly>
+                    </div>
+                    
+                    <div id="text-fields" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label">Font Size</label>
+                            <input type="number" class="form-control" id="font-size" value="36">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Font Color</label>
+                            <input type="color" class="form-control" id="font-color" value="#000000">
+                        </div>
+                    </div>
+                    
+                    <div id="image-fields" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label">Width</label>
+                            <input type="number" class="form-control" id="width" value="150">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Height</label>
+                            <input type="number" class="form-control" id="height" value="150">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Shape</label>
+                            <select class="form-control" id="shape">
+                                <option value="rect">Rectangle</option>
+                                <option value="circle">Circle</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100">Add Field</button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5>Existing Fields</h5>
+            </div>
+            <div class="card-body" id="fields-list">
+                {% if fields %}
+                    {% for field in fields %}
+                    <div class="field-item" data-field-id="{{ field.id }}">
+                        <strong>{{ field.field_name }}</strong> ({{ field.field_type }})<br>
+                        <small>Position: ({{ field.x_position }}, {{ field.y_position }})</small>
+                        <button class="btn btn-danger btn-sm float-end delete-field" data-field-id="{{ field.id }}">Delete</button>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">No fields added yet</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="mt-3">
+            <a href="{{ url_for('admin_templates') }}" class="btn btn-secondary w-100">Back to Templates</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const templateId = {{ template.id }};
+let clickedX = null;
+let clickedY = null;
+
+// Handle image click
+document.getElementById('template-image').addEventListener('click', function(e) {
+    const rect = this.getBoundingClientRect();
+    clickedX = Math.round(e.clientX - rect.left);
+    clickedY = Math.round(e.clientY - rect.top);
+    
+    document.getElementById('x-position').value = clickedX;
+    document.getElementById('y-position').value = clickedY;
+    document.getElementById('coord-display').textContent = `(${clickedX}, ${clickedY})`;
+});
+
+// Toggle field type options
+document.getElementById('field-type').addEventListener('change', function() {
+    const textFields = document.getElementById('text-fields');
+    const imageFields = document.getElementById('image-fields');
+    
+    if (this.value === 'text') {
+        textFields.style.display = 'block';
+        imageFields.style.display = 'none';
+    } else {
+        textFields.style.display = 'none';
+        imageFields.style.display = 'block';
+    }
+});
+
+// Initialize field type display
+document.getElementById('field-type').dispatchEvent(new Event('change'));
+
+// Add field
+document.getElementById('field-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const fieldType = document.getElementById('field-type').value;
+    const data = {
+        field_name: document.getElementById('field-name').value,
+        field_type: fieldType,
+        x_position: parseInt(document.getElementById('x-position').value),
+        y_position: parseInt(document.getElementById('y-position').value)
+    };
+    
+    if (fieldType === 'text') {
+        data.font_size = parseInt(document.getElementById('font-size').value);
+        data.font_color = document.getElementById('font-color').value;
+    } else {
+        data.width = parseInt(document.getElementById('width').value);
+        data.height = parseInt(document.getElementById('height').value);
+        data.shape = document.getElementById('shape').value;
+    }
+    
+    try {
+        const response = await fetch(`/admin/templates/${templateId}/fields`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            location.reload();
+        } else {
+            alert('Error adding field');
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+});
+
+// Delete field
+document.querySelectorAll('.delete-field').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        const fieldId = this.dataset.fieldId;
+        
+        if (!confirm('Delete this field?')) return;
+        
+        try {
+            const response = await fetch(`/admin/templates/${templateId}/fields/${fieldId}`, {
+                method: 'DELETE'
+            });
+            
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Error deleting field');
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    });
+});
+</script>
+{% endblock %}

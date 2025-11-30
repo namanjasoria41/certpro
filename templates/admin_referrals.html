@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Referral Codes - Admin{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4 text-light">Referral Codes</h2>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Create Referral Code</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST">
+                <div class="mb-3">
+                    <label class="form-label">User Email (owner of this code)</label>
+                    <input type="email" name="user_email" class="form-control" placeholder="user@example.com" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Reward Amount (wallet credit)</label>
+                    <input type="number" name="reward_amount" step="0.01" class="form-control" placeholder="e.g. 50" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Max Uses (leave blank for unlimited)</label>
+                    <input type="number" name="max_uses" class="form-control" placeholder="e.g. 10">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Expiry Date (optional)</label>
+                    <input type="date" name="expires_at" class="form-control">
+                </div>
+
+                <button type="submit" class="btn btn-primary">Create Code</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Existing Referral Codes</h5>
+        </div>
+        <div class="card-body table-responsive">
+            <table class="table table-dark table-striped align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Owner</th>
+                        <th>Reward</th>
+                        <th>Used / Max</th>
+                        <th>Expires</th>
+                        <th>Active</th>
+                        <th>Created At</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in codes %}
+                    <tr>
+                        <td><code>{{ c.code }}</code></td>
+                        <td>{{ c.owner.email }}</td>
+                        <td>${{ '%.2f'|format(c.reward_amount) }}</td>
+                        <td>{{ c.used_count }} / {{ c.max_uses if c.max_uses is not none else '∞' }}</td>
+                        <td>
+                            {% if c.expires_at %}
+                                {{ c.expires_at.strftime('%Y-%m-%d') }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{{ 'Yes' if c.is_active else 'No' }}</td>
+                        <td>{{ c.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">No referral codes created yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

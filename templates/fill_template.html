@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Fill Template - {{ template.name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <h2 class="mb-4">{{ template.name }}</h2>
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Template Preview</h5>
+                <img src="{{ url_for('static', filename='templates/' + template.image_path) }}" class="img-fluid" alt="{{ template.name }}">
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Fill Certificate Data</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info mb-3">
+                    <strong>Price:</strong> ${{ "%.2f"|format(template.price) }}<br>
+                    <strong>Your Balance:</strong> ${{ "%.2f"|format(current_user.wallet_balance) }}
+                    {% if current_user.wallet_balance < template.price %}
+                        <br><span class="text-danger">⚠️ Insufficient balance!</span>
+                        <a href="{{ url_for('wallet') }}" class="btn btn-sm btn-warning mt-2">Add Money</a>
+                    {% endif %}
+                </div>
+
+                <form method="POST" enctype="multipart/form-data">
+                    {% for field in fields %}
+                        <div class="mb-3">
+                            <label for="field_{{ field.id }}" class="form-label">
+                                {{ field.field_name }}
+                                {% if field.field_type == 'text' %}
+                                    <span class="badge bg-info">Text</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Image</span>
+                                {% endif %}
+                            </label>
+                            
+                            {% if field.field_type == 'text' %}
+                                <!-- TEXT VALUE -->
+                                <input 
+                                    type="text" 
+                                    class="form-control mb-2" 
+                                    id="field_{{ field.id }}" 
+                                    name="field_{{ field.id }}" 
+                                    required
+                                >
+
+                                <!-- FONT SELECTOR FOR THIS TEXT FIELD -->
+                                <label class="form-label">Font</label>
+                                <select 
+                                    name="field_{{ field.id }}_font" 
+                                    class="form-select"
+                                >
+                                    {% if available_fonts %}
+                                        {% for font_name, font_path in available_fonts.items() %}
+                                            <option value="{{ font_path }}">{{ font_name }}</option>
+                                        {% endfor %}
+                                    {% else %}
+                                        <!-- Fallback if no fonts were passed from backend -->
+                                        <option value="">Default</option>
+                                    {% endif %}
+                                </select>
+
+                            {% else %}
+                                <!-- IMAGE FIELD -->
+                                <input 
+                                    type="file" 
+                                    class="form-control" 
+                                    id="field_{{ field.id }}" 
+                                    name="field_{{ field.id }}" 
+                                    accept="image/*" 
+                                    required
+                                >
+                                <small class="form-text text-muted">
+                                    Size: {{ field.width }}x{{ field.height }}px, 
+                                    Shape: {{ field.shape }}
+                                </small>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                    
+                    {% if fields %}
+                        <button 
+                            type="submit" 
+                            class="btn btn-success w-100"
+                            {% if current_user.wallet_balance < template.price %}disabled{% endif %}
+                        >
+                            Generate Certificate (${{ "%.2f"|format(template.price) }})
+                        </button>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            This template has no fields configured yet.
+                        </div>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+        
+        <div class="mt-3">
+            <a href="{{ url_for('category', category=template.category) }}" class="btn btn-secondary w-100">
+                Back to {{ template.category }}
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

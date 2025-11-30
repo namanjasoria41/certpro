@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - New Template{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <h2 class="card-title mb-4">Add New Template</h2>
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Template Name</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="category" class="form-label">Category</label>
+                        <input type="text" class="form-control" id="category" name="category" required>
+                        <div class="form-text">e.g., Education, Achievement, Participation</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="price" class="form-label">Price</label>
+                        <input type="number" step="0.01" class="form-control" id="price" name="price" value="0" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="template_image" class="form-label">Template Image</label>
+                        <input type="file" class="form-control" id="template_image" name="template_image" accept="image/png,image/jpeg" required>
+                        <div class="form-text">Upload PNG or JPG certificate template</div>
+                    </div>
+                    <button type="submit" class="btn btn-success">Create Template</button>
+                    <a href="{{ url_for('admin_templates') }}" class="btn btn-secondary">Cancel</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

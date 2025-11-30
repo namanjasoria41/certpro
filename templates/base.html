@@ -154,7 +154,7 @@
         <li class="nav-item">
             <a class="nav-link" href="{{ url_for('wallet') }}">
                 <span class="badge bg-success" style="font-size: 0.9rem;">
-                    ${{ "%.2f"|format(current_user.wallet_balance) }}
+                    ₹{{ "%.2f"|format(current_user.wallet_balance) }}
                 </span>
                 <span class="d-lg-none ms-2">Wallet Balance</span>
             </a>
@@ -252,4 +252,5 @@
     
     {% block extra_js %}{% endblock %}
 </body>
+
 </html>

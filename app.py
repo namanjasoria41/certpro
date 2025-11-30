@@ -347,12 +347,13 @@ def payment_verify():
 
 @app.route("/admin/templates")
 @login_required
+
 def admin_templates():
     if not current_user.is_admin:
         flash("Access denied.", "danger")
         return redirect(url_for("index"))
 
-    templates = Template.query.order_by(Template.created_at.desc()).all()
+    templates = Template.query.order_by(Template.id.desc()).all()
     return render_template("admin_templates.html", templates=templates)
 
 
@@ -496,10 +497,13 @@ def admin_create_referral():
 # ------------------------------------------------------------------------------
 
 @app.route("/")
+@app.route("/")
 def index():
-    templates = Template.query.order_by(Template.created_at.desc()).all()
+    # Order by newest first using ID instead of created_at
+    templates = Template.query.order_by(Template.id.desc()).all()
     categories = sorted(set(t.category for t in templates if t.category))
     return render_template("index.html", templates=templates, categories=categories)
+
 
 
 @app.route("/category/<category_name>")
@@ -593,3 +597,4 @@ def view_certificate(filename):
 if __name__ == "__main__":
     # For local debug only; on Render/Gunicorn, Procfile is used.
     app.run(debug=True)
+

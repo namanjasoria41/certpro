@@ -58,11 +58,9 @@ login_manager.login_view = "login"
 razorpay_client = razorpay.Client(
     auth=(Config.RAZORPAY_KEY_ID, Config.RAZORPAY_KEY_SECRET)
 )
-
-
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
+# 🔧 Create tables once at startup (Flask 3 compatible)
+with app.app_context():
+    db.create_all()
 
 
 # ------------------------------------------------------------------------------

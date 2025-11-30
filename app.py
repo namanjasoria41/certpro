@@ -77,7 +77,8 @@ def redeem_referral_code_for_user(referral_code, user):
     db.session.add(tx)
     db.session.commit()
 
-    return True, f"${reward:.2f} added to your wallet via referral."
+    # CURRENCY CHANGED TO ₹
+    return True, f"₹{reward:.2f} added to your wallet via referral."
 
 
 # Ensure directories exist
@@ -101,6 +102,10 @@ with app.app_context():
 # Routes
 @app.route('/')
 def index():
+    # NEW: redirect to login first if user not logged in
+    if not current_user.is_authenticated:
+        return redirect(url_for('login'))
+
     categories = db.session.query(Template.category).distinct().all()
     categories = [c[0] for c in categories]
     templates = Template.query.all()
@@ -170,6 +175,37 @@ def login():
     return render_template('login.html')
 
 
+# NEW: Forgot Password route
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        new_password = request.form.get('new_password')
+        confirm_password = request.form.get('confirm_password')
+
+        if not email or not new_password or not confirm_password:
+            flash('Please fill all fields.', 'warning')
+            return redirect(url_for('forgot_password'))
+
+        if new_password != confirm_password:
+            flash('Passwords do not match.', 'danger')
+            return redirect(url_for('forgot_password'))
+
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            flash('No account found with that email.', 'danger')
+            return redirect(url_for('forgot_password'))
+
+        # DEMO-ONLY reset: no email verification
+        user.password = generate_password_hash(new_password)
+        db.session.commit()
+
+        flash('Password reset successful! You can now log in with your new password.', 'success')
+        return redirect(url_for('login'))
+
+    return render_template('forgot_password.html')
+
+
 @app.route('/logout')
 @login_required
 def logout():
@@ -202,7 +238,8 @@ def wallet():
         db.session.add(transaction)
         db.session.commit()
 
-        flash(f'Wallet recharged with ${amount:.2f}', 'success')
+        # CURRENCY CHANGED TO ₹
+        flash(f'Wallet recharged with ₹{amount:.2f}', 'success')
         return redirect(url_for('wallet'))
 
     transactions = Transaction.query.filter_by(user_id=current_user.id).order_by(Transaction.timestamp.desc()).all()
@@ -398,7 +435,8 @@ def fill_template(template_id):
 
         db.session.commit()
 
-        flash(f'Certificate generated successfully! ${template.price:.2f} deducted from your wallet.', 'success')
+        # CURRENCY CHANGED TO ₹
+        flash(f'Certificate generated successfully! ₹{template.price:.2f} deducted from your wallet.', 'success')
         return redirect(url_for('view_certificate', filename=output_filename))
 
     return render_template('fill_template.html', template=template, fields=fields)

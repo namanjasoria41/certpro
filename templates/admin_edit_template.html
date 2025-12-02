@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Template - {{ template.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2 class="mb-3">Edit Template</h2>
+
+  <a href="{{ url_for('admin_templates') }}" class="btn btn-secondary mb-3">
+    ← Back to Templates
+  </a>
+
+  <div class="row">
+    <div class="col-md-6 mb-4">
+      <div class="card">
+        <div class="card-header">
+          Current Preview
+        </div>
+        <div class="card-body text-center">
+          <img src="{{ url_for('static', filename='templates/' + template.image_path) }}"
+               alt="{{ template.name }}" class="img-fluid">
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+      <div class="card">
+        <div class="card-header">
+          Edit Details
+        </div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_edit_template', template_id=template.id) }}">
+            <div class="mb-3">
+              <label class="form-label">Template Name</label>
+              <input type="text" name="name" class="form-control"
+                     value="{{ template.name }}" required>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Category</label>
+              <input type="text" name="category" class="form-control"
+                     value="{{ template.category }}" required>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Price (₹)</label>
+              <input type="number" name="price" class="form-control"
+                     step="1" min="0" value="{{ template.price or 0 }}" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+              Save Changes
+            </button>
+
+            <a href="{{ url_for('admin_templates') }}" class="btn btn-outline-secondary ms-2">
+              Cancel
+            </a>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

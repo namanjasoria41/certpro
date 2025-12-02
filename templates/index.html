@@ -1,34 +1,44 @@
 {% extends "base.html" %}
 
-{% block title %}Home - Certificate Generator{% endblock %}
+{% block title %}CertPro - Home{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-12">
-        <h1 class="mb-4">Certificate Templates</h1>
-        <p class="lead">Browse our collection of professional certificate templates</p>
-    </div>
-</div>
+<div class="container mt-4">
+  <h2 class="mb-4">All Certificate Templates</h2>
 
-<div class="row">
-    {% if categories %}
-        {% for category in categories %}
-        <div class="col-md-4 mb-4">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">{{ category }}</h5>
-                    <p class="card-text">View templates in this category</p>
-                    <a href="{{ url_for('category', category=category) }}" class="btn btn-primary">View Templates</a>
-                </div>
-            </div>
+  {% if categories %}
+  <div class="mb-3">
+    <strong>Categories:</strong>
+    {% for cat in categories %}
+      <a href="{{ url_for('category', category_name=cat) }}" class="badge bg-primary me-1">
+        {{ cat }}
+      </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="row">
+    {% for template in templates %}
+    <div class="col-md-4 mb-4">
+      <div class="card h-100">
+        <img src="{{ url_for('static', filename='templates/' + template.image_path) }}"
+             class="card-img-top" alt="{{ template.name }}">
+        <div class="card-body d-flex flex-column">
+          <h5 class="card-title">{{ template.name }}</h5>
+          <p class="card-text">
+            Category: {{ template.category }}<br>
+            Price: ₹ {{ "%.2f"|format(template.price or 0) }}
+          </p>
+          <a href="{{ url_for('fill_template', template_id=template.id) }}"
+             class="btn btn-primary mt-auto">
+            Use Template
+          </a>
         </div>
-        {% endfor %}
+      </div>
+    </div>
     {% else %}
-        <div class="col-md-12">
-            <div class="alert alert-info">
-                No templates available yet. Please check back later.
-            </div>
-        </div>
-    {% endif %}
+    <p>No templates available yet.</p>
+    {% endfor %}
+  </div>
 </div>
 {% endblock %}

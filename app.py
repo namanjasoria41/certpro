@@ -256,8 +256,8 @@ def add_money():
         flash("Invalid amount.", "danger")
         return redirect(url_for("wallet"))
 
-    if amount <= 0:
-        flash("Amount must be greater than zero.", "danger")
+    if amount <= 300:
+        flash("Minimum wallet top-up amount is ₹300.", "danger")
         return redirect(url_for("wallet"))
 
     amount_paise = int(amount * 100)
@@ -605,5 +605,6 @@ def view_certificate(filename):
 if __name__ == "__main__":
     # For local debug only; on Render/Gunicorn, Procfile is used.
     app.run(debug=True)
+
 
 

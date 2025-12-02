@@ -1,8 +1,7 @@
 import os
-import json
 import string
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import (
     Flask,
@@ -24,7 +23,7 @@ from flask_login import (
 )
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont
 
 from config import Config
 from models import (
@@ -41,14 +40,14 @@ import razorpay
 from razorpay.errors import SignatureVerificationError
 
 
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # App / DB / Login setup
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Ensure DB connections are pre-pinged to avoid "SSL connection has been closed"
+# Make DB connections robust
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
 }
@@ -58,6 +57,7 @@ db.init_app(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
+
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -73,14 +73,14 @@ razorpay_client = razorpay.Client(
     auth=(Config.RAZORPAY_KEY_ID, Config.RAZORPAY_KEY_SECRET)
 )
 
-# 🔧 Create tables once at startup (Flask 3 compatible)
+# Create tables on startup (Flask 3-compatible)
 with app.app_context():
     db.create_all()
 
 
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Helpers
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 
 ALLOWED_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg"}
 
@@ -101,9 +101,9 @@ def generate_referral_code(length: int = 8) -> str:
             return code
 
 
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Auth routes
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -156,10 +156,8 @@ def register():
                         reward_amount=Config.REFERRAL_OWNER_BONUS,
                     )
 
-                    # Increase owner wallet balance for successful use
+                    # Increase owner wallet balance
                     rc.owner.wallet_balance += Config.REFERRAL_OWNER_BONUS
-
-                    # Increment used_count
                     rc.used_count += 1
 
                     db.session.add(redemption)
@@ -232,9 +230,9 @@ def forgot_password():
     return render_template("forgot_password.html")
 
 
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Wallet / Transactions
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 
 @app.route("/wallet", methods=["GET"])
 @login_required
@@ -256,7 +254,8 @@ def add_money():
         flash("Invalid amount.", "danger")
         return redirect(url_for("wallet"))
 
-    if amount <= 300:
+    # Minimum 300
+    if amount < 300:
         flash("Minimum wallet top-up amount is ₹300.", "danger")
         return redirect(url_for("wallet"))
 
@@ -341,15 +340,14 @@ def payment_verify():
     return redirect(url_for("wallet"))
 
 
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Admin: Templates management
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 
 @app.route("/admin/templates")
 @login_required
-
 def admin_templates():
-    if not current_user.is_admin:
+    if not getattr(current_user, "is_admin", False):
         flash("Access denied.", "danger")
         return redirect(url_for("index"))
 
@@ -359,9 +357,8 @@ def admin_templates():
 
 @app.route("/admin/templates/new", methods=["GET", "POST"])
 @login_required
-
 def admin_new_template():
-    if not current_user.is_admin:
+    if not getattr(current_user, "is_admin", False):
         flash("Access denied.", "danger")
         return redirect(url_for("index"))
 
@@ -375,15 +372,13 @@ def admin_new_template():
             flash("Image file is required.", "danger")
             return redirect(url_for("admin_new_template"))
 
-        ext = image_file.filename.rsplit(".", 1)[-1].lower()
-        if ext not in ["jpg", "jpeg", "png"]:
+        if not allowed_file(image_file.filename):
             flash("Only JPG, JPEG, PNG allowed.", "danger")
             return redirect(url_for("admin_new_template"))
 
         filename = secure_filename(image_file.filename)
 
-        # ******** FIXED PATH ********
-        save_dir = os.path.join(app.root_path, "static", "templates")
+        save_dir = Config.TEMPLATE_FOLDER
         os.makedirs(save_dir, exist_ok=True)
 
         save_path = os.path.join(save_dir, filename)
@@ -393,7 +388,7 @@ def admin_new_template():
             name=name,
             category=category,
             price=price,
-            image_path=filename  # store only filename
+            image_path=filename,  # store only filename
         )
 
         db.session.add(template)
@@ -405,11 +400,10 @@ def admin_new_template():
     return render_template("admin_new_template.html")
 
 
-
 @app.route("/admin/template/<int:template_id>/builder", methods=["GET", "POST"])
 @login_required
 def admin_template_builder(template_id):
-    if not current_user.is_admin:
+    if not getattr(current_user, "is_admin", False):
         flash("Access denied.", "danger")
         return redirect(url_for("index"))
 
@@ -445,14 +439,14 @@ def admin_template_builder(template_id):
     )
 
 
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Admin: Referral Codes
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 
 @app.route("/admin/referrals")
 @login_required
 def admin_referrals():
-    if not current_user.is_admin:
+    if not getattr(current_user, "is_admin", False):
         flash("Access denied.", "danger")
         return redirect(url_for("index"))
 
@@ -463,7 +457,7 @@ def admin_referrals():
 @app.route("/admin/referrals/new", methods=["POST"])
 @login_required
 def admin_create_referral():
-    if not current_user.is_admin:
+    if not getattr(current_user, "is_admin", False):
         flash("Access denied.", "danger")
         return redirect(url_for("index"))
 
@@ -499,18 +493,15 @@ def admin_create_referral():
     return redirect(url_for("admin_referrals"))
 
 
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Public routes: index, category, fill template, etc.
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 
 @app.route("/")
-@app.route("/")
 def index():
-    # Order by newest first using ID instead of created_at
     templates = Template.query.order_by(Template.id.desc()).all()
     categories = sorted(set(t.category for t in templates if t.category))
     return render_template("index.html", templates=templates, categories=categories)
-
 
 
 @app.route("/category/<category_name>")
@@ -531,9 +522,7 @@ def fill_template(template_id):
             return redirect(url_for("wallet"))
 
         # Collect user-entered values
-        field_values = {}
-        for field in fields:
-            field_values[field.name] = request.form.get(field.name, "")
+        field_values = {field.name: request.form.get(field.name, "") for field in fields}
 
         # Open base image
         base_image_path = os.path.join(Config.TEMPLATE_FOLDER, template.image_path)
@@ -553,7 +542,6 @@ def fill_template(template_id):
 
             text_bbox = draw.textbbox((0, 0), text, font=font)
             text_width = text_bbox[2] - text_bbox[0]
-            text_height = text_bbox[3] - text_bbox[1]
 
             x = field.x
             y = field.y
@@ -597,14 +585,9 @@ def view_certificate(filename):
     return send_from_directory(Config.GENERATED_FOLDER, filename)
 
 
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Main
-# ------------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    # For local debug only; on Render/Gunicorn, Procfile is used.
     app.run(debug=True)
-
-
-
-

@@ -112,25 +112,37 @@ def register():
 
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
+        phone = request.form.get("phone", "").strip()
         password = request.form.get("password", "").strip()
         confirm_password = request.form.get("confirm_password", "").strip()
         referral_code_input = request.form.get("referral_code", "").strip()
 
-        if not email or not password:
-            flash("Email and password are required.", "danger")
+        # At least one of email or phone is required
+        if (not email and not phone) or not password:
+            flash("Please provide at least an email or mobile number, and a password.", "danger")
             return redirect(url_for("register"))
 
-        existing = User.query.filter_by(email=email).first()
-        if existing:
-            flash("Email already registered. Please log in.", "warning")
-            return redirect(url_for("login"))
-
+        # Check password confirmation
         if password != confirm_password:
             flash("Passwords do not match.", "danger")
             return redirect(url_for("register"))
 
+        # Check existing by email
+        if email:
+            existing_email = User.query.filter_by(email=email).first()
+            if existing_email:
+                flash("An account with this email already exists. Please log in.", "warning")
+                return redirect(url_for("login"))
+
+        # Check existing by phone
+        if phone:
+            existing_phone = User.query.filter_by(phone=phone).first()
+            if existing_phone:
+                flash("An account with this mobile number already exists. Please log in.", "warning")
+                return redirect(url_for("login"))
+
         hashed_password = generate_password_hash(password)
-        user = User(email=email, password=hashed_password)
+        user = User(email=email or None, phone=phone or None, password=hashed_password)
 
         # Handle referral code if provided
         if referral_code_input:
@@ -172,25 +184,34 @@ def register():
 
     return render_template("register.html")
 
-
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for("index"))
 
     if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
+        identifier = request.form.get("identifier", "").strip()
         password = request.form.get("password", "").strip()
 
-        user = User.query.filter_by(email=email).first()
+        user = None
+
+        # Decide whether identifier is email or phone
+        if "@" in identifier:
+            # Treat as email
+            user = User.query.filter_by(email=identifier.lower()).first()
+        else:
+            # Treat as phone
+            user = User.query.filter_by(phone=identifier).first()
+
         if user and check_password_hash(user.password, password):
             login_user(user)
             flash("Logged in successfully.", "success")
             return redirect(url_for("index"))
         else:
-            flash("Invalid email or password.", "danger")
+            flash("Invalid credentials. Check your email/mobile and password.", "danger")
 
     return render_template("login.html")
+
 
 
 @app.route("/logout")
@@ -658,3 +679,4 @@ def view_certificate(filename):
 
 if __name__ == "__main__":
     app.run(debug=True)
+

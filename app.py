@@ -587,9 +587,15 @@ def admin_create_referral():
 
 @app.route("/")
 def index():
+    # If user is not logged in, send them to login page first
+    if not current_user.is_authenticated:
+        return redirect(url_for("login"))
+
+    # If logged in, show the main template list
     templates = Template.query.order_by(Template.id.desc()).all()
     categories = sorted(set(t.category for t in templates if t.category))
     return render_template("index.html", templates=templates, categories=categories)
+
 
 
 @app.route("/category/<category_name>")
@@ -679,4 +685,5 @@ def view_certificate(filename):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 

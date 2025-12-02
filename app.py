@@ -22,7 +22,7 @@ from flask_login import (
     current_user,
 )
 from werkzeug.utils import secure_filename
-from werkzeug.security import generate_password_hash, check_password_hash
+    from werkzeug.security import generate_password_hash, check_password_hash
 from PIL import Image, ImageDraw, ImageFont
 
 from config import Config
@@ -399,6 +399,7 @@ def admin_new_template():
 
     return render_template("admin_new_template.html")
 
+
 @app.route("/admin/template/<int:template_id>/edit", methods=["GET", "POST"])
 @login_required
 def admin_edit_template(template_id):
@@ -435,6 +436,35 @@ def admin_edit_template(template_id):
 
     # GET request → show form
     return render_template("admin_edit_template.html", template=template)
+
+
+@app.route("/admin/template/<int:template_id>/delete", methods=["POST"])
+@login_required
+def admin_delete_template(template_id):
+    # Only admin can delete
+    if not getattr(current_user, "is_admin", False):
+        flash("Access denied.", "danger")
+        return redirect(url_for("index"))
+
+    template = Template.query.get_or_404(template_id)
+
+    # Delete all fields for this template
+    TemplateField.query.filter_by(template_id=template.id).delete()
+
+    # Delete the image file if it exists
+    if template.image_path:
+        image_path = os.path.join(Config.TEMPLATE_FOLDER, template.image_path)
+        try:
+            if os.path.exists(image_path):
+                os.remove(image_path)
+        except Exception as e:
+            app.logger.warning(f"Failed to delete template image {image_path}: {e}")
+
+    db.session.delete(template)
+    db.session.commit()
+
+    flash(f"Template '{template.name}' deleted successfully.", "success")
+    return redirect(url_for("admin_templates"))
 
 
 @app.route("/admin/template/<int:template_id>/builder", methods=["GET", "POST"])
@@ -628,4 +658,3 @@ def view_certificate(filename):
 
 if __name__ == "__main__":
     app.run(debug=True)
-

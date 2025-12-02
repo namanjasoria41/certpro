@@ -29,7 +29,9 @@
           Edit Details
         </div>
         <div class="card-body">
-          <form method="POST" action="{{ url_for('admin_edit_template', template_id=template.id) }}">
+          <form method="POST"
+                action="{{ url_for('admin_edit_template', template_id=template.id) }}">
+
             <div class="mb-3">
               <label class="form-label">Template Name</label>
               <input type="text" name="name" class="form-control"
@@ -51,7 +53,6 @@
             <button type="submit" class="btn btn-primary">
               Save Changes
             </button>
-
             <a href="{{ url_for('admin_templates') }}" class="btn btn-outline-secondary ms-2">
               Cancel
             </a>

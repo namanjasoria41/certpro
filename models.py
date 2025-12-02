@@ -6,6 +6,7 @@ db = SQLAlchemy()
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
+    phone = db.Column(db.String(20), unique=True, nullable=True)
     password = db.Column(db.String(200), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     wallet_balance = db.Column(db.Float, default=0.0)
@@ -89,3 +90,4 @@ class Transaction(db.Model):
     transaction_type = db.Column(db.String(20), nullable=False)  # 'credit' or 'debit'
     description = db.Column(db.String(200))
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
+

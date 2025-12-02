@@ -359,6 +359,8 @@ def admin_templates():
 
 @app.route("/admin/templates/new", methods=["GET", "POST"])
 @login_required
+@app.route("/admin/templates/new", methods=["GET", "POST"])
+@login_required
 def admin_new_template():
     if not current_user.is_admin:
         flash("Access denied.", "danger")
@@ -374,29 +376,35 @@ def admin_new_template():
             flash("Image file is required.", "danger")
             return redirect(url_for("admin_new_template"))
 
-        if not allowed_file(image_file.filename):
-            flash("Invalid file type. Only PNG/JPG/JPEG allowed.", "danger")
+        ext = image_file.filename.rsplit(".", 1)[-1].lower()
+        if ext not in ["jpg", "jpeg", "png"]:
+            flash("Only JPG, JPEG, PNG allowed.", "danger")
             return redirect(url_for("admin_new_template"))
 
         filename = secure_filename(image_file.filename)
-        os.makedirs(Config.TEMPLATE_FOLDER, exist_ok=True)
-        image_path = os.path.join(Config.TEMPLATE_FOLDER, filename)
-        image_file.save(image_path)
+
+        # ******** FIXED PATH ********
+        save_dir = os.path.join(app.root_path, "static", "templates")
+        os.makedirs(save_dir, exist_ok=True)
+
+        save_path = os.path.join(save_dir, filename)
+        image_file.save(save_path)
 
         template = Template(
             name=name,
             category=category,
             price=price,
-            image_path=filename,
+            image_path=filename  # store only filename
         )
 
         db.session.add(template)
         db.session.commit()
 
-        flash("Template created successfully.", "success")
+        flash("Template added successfully.", "success")
         return redirect(url_for("admin_templates"))
 
     return render_template("admin_new_template.html")
+
 
 
 @app.route("/admin/template/<int:template_id>/builder", methods=["GET", "POST"])
@@ -597,4 +605,5 @@ def view_certificate(filename):
 if __name__ == "__main__":
     # For local debug only; on Render/Gunicorn, Procfile is used.
     app.run(debug=True)
+
 

@@ -399,6 +399,43 @@ def admin_new_template():
 
     return render_template("admin_new_template.html")
 
+@app.route("/admin/template/<int:template_id>/edit", methods=["GET", "POST"])
+@login_required
+def admin_edit_template(template_id):
+    # Only admin can edit
+    if not getattr(current_user, "is_admin", False):
+        flash("Access denied.", "danger")
+        return redirect(url_for("index"))
+
+    template = Template.query.get_or_404(template_id)
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        category = request.form.get("category", "").strip()
+        price_raw = request.form.get("price", "").strip()
+
+        if not name or not category:
+            flash("Name and category are required.", "danger")
+            return redirect(url_for("admin_edit_template", template_id=template.id))
+
+        try:
+            price = float(price_raw or 0)
+        except ValueError:
+            flash("Invalid price.", "danger")
+            return redirect(url_for("admin_edit_template", template_id=template.id))
+
+        template.name = name
+        template.category = category
+        template.price = price
+
+        db.session.commit()
+
+        flash("Template updated successfully.", "success")
+        return redirect(url_for("admin_templates"))
+
+    # GET request → show form
+    return render_template("admin_edit_template.html", template=template)
+
 
 @app.route("/admin/template/<int:template_id>/builder", methods=["GET", "POST"])
 @login_required
@@ -591,3 +628,4 @@ def view_certificate(filename):
 
 if __name__ == "__main__":
     app.run(debug=True)
+

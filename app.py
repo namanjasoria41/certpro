@@ -359,8 +359,7 @@ def admin_templates():
 
 @app.route("/admin/templates/new", methods=["GET", "POST"])
 @login_required
-@app.route("/admin/templates/new", methods=["GET", "POST"])
-@login_required
+
 def admin_new_template():
     if not current_user.is_admin:
         flash("Access denied.", "danger")
@@ -605,6 +604,7 @@ def view_certificate(filename):
 if __name__ == "__main__":
     # For local debug only; on Render/Gunicorn, Procfile is used.
     app.run(debug=True)
+
 
 
 

@@ -3,37 +3,50 @@
 {% block title %}Admin - Templates{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-12">
-        <h1 class="mb-4">Manage Templates</h1>
-        <a href="{{ url_for('admin_new_template') }}" class="btn btn-success mb-3">+ Add New Template</a>
-    </div>
-</div>
+<div class="container mt-4">
+  <h2 class="mb-3">All Templates (Admin)</h2>
 
-<div class="row">
-    {% if templates %}
-        {% for template in templates %}
-        <div class="col-md-4 mb-4">
-            <div class="card">
-                <img src="{{ url_for('static', filename='templates/' + template.image_path) }}" class="card-img-top" alt="{{ template.name }}">
-                <div class="card-body">
-                    <h5 class="card-title">{{ template.name }}</h5>
-                    <p class="card-text">
-                        <strong>Category:</strong> {{ template.category }}<br>
-                        <strong>Price:</strong> ${{ template.price }}<br>
-                        <strong>Fields:</strong> {{ template.fields|length }}
-                    </p>
-                    <a href="{{ url_for('admin_template_builder', template_id=template.id) }}" class="btn btn-primary btn-sm">Edit Fields</a>
-                </div>
-            </div>
-        </div>
+  <a href="{{ url_for('admin_new_template') }}" class="btn btn-success mb-3">
+    + Add New Template
+  </a>
+
+  <div class="table-responsive">
+    <table class="table table-striped align-middle">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Preview</th>
+          <th>Name</th>
+          <th>Category</th>
+          <th>Price (₹)</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in templates %}
+        <tr>
+          <td>{{ t.id }}</td>
+          <td style="width: 150px;">
+            <img src="{{ url_for('static', filename='templates/' + t.image_path) }}"
+                 alt="{{ t.name }}" class="img-fluid rounded">
+          </td>
+          <td>{{ t.name }}</td>
+          <td>{{ t.category }}</td>
+          <td>{{ "%.2f"|format(t.price or 0) }}</td>
+          <td>
+            <a href="{{ url_for('admin_template_builder', template_id=t.id) }}"
+               class="btn btn-sm btn-primary">
+              Open Builder
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="text-center text-muted">No templates created yet.</td>
+        </tr>
         {% endfor %}
-    {% else %}
-        <div class="col-md-12">
-            <div class="alert alert-info">
-                No templates created yet. Click "Add New Template" to get started.
-            </div>
-        </div>
-    {% endif %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endblock %}

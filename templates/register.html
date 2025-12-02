@@ -10,12 +10,24 @@
                 <h2 class="card-title text-center mb-4">Register</h2>
                 <form method="POST">
                     <div class="mb-3">
-                        <label for="email" class="form-label">Email</label>
+                        <label for="email" class="form-label">Email (optional)</label>
                         <input type="email"
                                class="form-control"
                                id="email"
                                name="email"
-                               required>
+                               placeholder="you@example.com">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="phone" class="form-label">Mobile Number (optional)</label>
+                        <input type="text"
+                               class="form-control"
+                               id="phone"
+                               name="phone"
+                               placeholder="10-digit mobile number">
+                        <div class="form-text">
+                            You must provide at least email or mobile.
+                        </div>
                     </div>
 
                     <div class="mb-3">
@@ -57,4 +69,3 @@
     </div>
 </div>
 {% endblock %}
-

@@ -22,7 +22,7 @@ from flask_login import (
     current_user,
 )
 from werkzeug.utils import secure_filename
-    from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 from PIL import Image, ImageDraw, ImageFont
 
 from config import Config

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Preview - {{ template.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2 class="mb-3">Preview: {{ template.name }}</h2>
+
+  {% if preview_url %}
+    <div class="mb-4">
+      <h5>Preview</h5>
+      <img src="{{ preview_url }}" class="img-fluid rounded" alt="Preview">
+    </div>
+
+    <form method="POST" action="{{ url_for('purchase_template', template_id=template.id) }}">
+      <div class="d-flex gap-2 mb-3">
+        {% if current_user.wallet_balance >= (template.price or 0) %}
+        <button name="pay_with_wallet" value="1" class="btn btn-success">
+          Pay from Wallet (₹{{ '%.2f'|format(template.price or 0) }})
+        </button>
+        {% endif %}
+
+        <button type="submit" class="btn btn-primary">Pay with Razorpay (₹{{ '%.2f'|format(template.price or 0) }})</button>
+
+        <a href="{{ url_for('preview_template', template_id=template.id) }}" class="btn btn-outline-secondary">
+          Edit Values
+        </a>
+      </div>
+    </form>
+
+  {% else %}
+    <form method="POST" action="{{ url_for('preview_template', template_id=template.id) }}">
+      {% for field in fields %}
+        <div class="mb-3">
+          <label class="form-label">{{ field.name }}</label>
+          <input type="text" name="{{ field.name }}" class="form-control"
+                 value="{{ request.form.get(field.name, '') }}">
+        </div>
+      {% endfor %}
+
+      <button type="submit" class="btn btn-primary">Generate Preview</button>
+      <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Cancel</a>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}

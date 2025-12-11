@@ -678,6 +678,202 @@ def fill_template(template_id):
 def view_certificate(filename):
     return send_from_directory(Config.GENERATED_FOLDER, filename)
 
+# ---------------------------
+# Preview + Purchase flow (Option A)
+# ---------------------------
+
+@app.route("/template/<int:template_id>/preview", methods=["GET", "POST"])
+@login_required
+def preview_template(template_id):
+    """
+    Show a form where user enters field values and generate a temporary preview image (no charge).
+    GET: render form
+    POST: generate preview image and show it with pay/wallet options
+    """
+    template = Template.query.get_or_404(template_id)
+    fields = TemplateField.query.filter_by(template_id=template.id).all()
+
+    if request.method == "POST":
+        # collect field values
+        field_values = {field.name: request.form.get(field.name, "") for field in fields}
+
+        # open base image and draw text (same as fill_template but saved to PREVIEW_FOLDER)
+        base_image_path = os.path.join(Config.TEMPLATE_FOLDER, template.image_path)
+        base_image = Image.open(base_image_path).convert("RGBA")
+        draw = ImageDraw.Draw(base_image)
+
+        for field in fields:
+            text = field_values.get(field.name, "")
+            color = field.color or "#000000"
+            font_size = field.font_size or 24
+
+            try:
+                font = ImageFont.truetype(Config.FONT_PATH, font_size)
+            except Exception:
+                font = ImageFont.load_default()
+
+            text_bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = text_bbox[2] - text_bbox[0]
+
+            x = field.x
+            y = field.y
+
+            if field.align == "center":
+                x -= text_width // 2
+            elif field.align == "right":
+                x -= text_width
+
+            draw.text((x, y), text, fill=color, font=font)
+
+        # Save preview
+        os.makedirs(Config.PREVIEW_FOLDER, exist_ok=True)
+        preview_filename = f"preview_{current_user.id}_{template.id}_{int(datetime.utcnow().timestamp())}.png"
+        preview_path = os.path.join(Config.PREVIEW_FOLDER, preview_filename)
+        base_image.save(preview_path)
+
+        # Store preview info in session so we can generate final after payment
+        session["preview_info"] = {
+            "preview_filename": preview_filename,
+            "field_values": field_values,
+            "template_id": template.id,
+        }
+
+        # Render the preview view that shows image and payment options
+        return render_template(
+            "preview_template.html",
+            template=template,
+            fields=fields,
+            preview_url=url_for("static", filename=f"previews/{preview_filename}"),
+            preview_filename=preview_filename,
+        )
+
+    # GET -> show form
+    return render_template("preview_template.html", template=template, fields=fields)
+
+
+@app.route("/template/<int:template_id>/purchase", methods=["POST"])
+@login_required
+def purchase_template(template_id):
+    """
+    Create a Razorpay order for this template price and render payment page (or let user pay from wallet).
+    Expects that session['preview_info'] exists and corresponds to this template.
+    """
+    template = Template.query.get_or_404(template_id)
+
+    # confirm correct preview exists in session
+    preview_info = session.get("preview_info")
+    if not preview_info or int(preview_info.get("template_id", 0)) != template.id:
+        flash("Preview missing or expired. Please re-generate preview.", "warning")
+        return redirect(url_for("preview_template", template_id=template.id))
+
+    # If user selected wallet payment (form includes pay_with_wallet)
+    if request.form.get("pay_with_wallet"):
+        # check balance
+        if current_user.wallet_balance < (template.price or 0):
+            flash("Insufficient wallet balance. Please add money first.", "danger")
+            return redirect(url_for("wallet"))
+
+        # Deduct from wallet
+        current_user.wallet_balance -= template.price
+        # Generate final certificate and record transaction
+        filename = _generate_final_certificate_from_preview(current_user, template, preview_info)
+
+        # Record debit transaction
+        transaction = Transaction(
+            user_id=current_user.id,
+            amount=template.price,
+            transaction_type="debit",
+            description=f"Certificate purchase - {template.name}",
+        )
+        db.session.add(transaction)
+        db.session.commit()
+
+        # Clear preview info
+        session.pop("preview_info", None)
+
+        flash("Purchase successful. Certificate generated.", "success")
+        return redirect(url_for("view_certificate", filename=filename))
+
+    # Otherwise create Razorpay order
+    amount_paise = int((template.price or 0) * 100)
+    order = razorpay_client.order.create(
+        {
+            "amount": amount_paise,
+            "currency": "INR",
+            "payment_capture": "1",
+            "notes": {
+                "purpose": "template_purchase",
+                "user_id": str(current_user.id),
+                "template_id": str(template.id),
+            },
+        }
+    )
+
+    # store order and preview info in session for verification step
+    session["purchase_order_id"] = order["id"]
+
+    # Render a payment page that posts to /payment/verify (existing route)
+    return render_template(
+        "purchase_payment.html",
+        razorpay_key_id=Config.RAZORPAY_KEY_ID,
+        razorpay_order_id=order["id"],
+        amount=template.price,
+        amount_paise=amount_paise,
+        template=template,
+    )
+
+
+def _generate_final_certificate_from_preview(user, template, preview_info):
+    """
+    Helper: create the final generated certificate using preview_info's field_values,
+    save final to GENERATED_FOLDER, deduct wallet if needed, and log transaction.
+    """
+    field_values = preview_info.get("field_values", {})
+
+    base_image_path = os.path.join(Config.TEMPLATE_FOLDER, template.image_path)
+    base_image = Image.open(base_image_path).convert("RGBA")
+    draw = ImageDraw.Draw(base_image)
+
+    fields = TemplateField.query.filter_by(template_id=template.id).all()
+    for field in fields:
+        text = field_values.get(field.name, "")
+        color = field.color or "#000000"
+        font_size = field.font_size or 24
+        try:
+            font = ImageFont.truetype(Config.FONT_PATH, font_size)
+        except Exception:
+            font = ImageFont.load_default()
+
+        text_bbox = draw.textbbox((0, 0), text, font=font)
+        text_width = text_bbox[2] - text_bbox[0]
+        x = field.x
+        y = field.y
+        if field.align == "center":
+            x -= text_width // 2
+        elif field.align == "right":
+            x -= text_width
+        draw.text((x, y), text, fill=color, font=font)
+
+    os.makedirs(Config.GENERATED_FOLDER, exist_ok=True)
+    filename = (
+        f"certificate_{user.id}_{template.id}_{int(datetime.utcnow().timestamp())}.png"
+    )
+    output_path = os.path.join(Config.GENERATED_FOLDER, filename)
+    base_image.save(output_path)
+
+    # Log transaction row (if not already logged by calling context)
+    transaction = Transaction(
+        user_id=user.id,
+        amount=template.price,
+        transaction_type="debit",
+        description=f"Certificate purchase - {template.name}",
+    )
+    db.session.add(transaction)
+    db.session.commit()
+
+    return filename
+
+
 
 # --------------------------------------------------------------------------
 # Main
@@ -685,5 +881,6 @@ def view_certificate(filename):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 

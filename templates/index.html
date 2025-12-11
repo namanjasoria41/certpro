@@ -31,14 +31,12 @@
           <p class="mb-3"><strong>₹{{ '%.2f'|format(t.price or 0) }}</strong></p>
 
           <div class="mt-auto d-flex gap-2">
-            <!-- Directly call the route name that exists in app.py -->
             <a href="{{ url_for('fill_template', template_id=t.id) }}"
                class="btn btn-sm btn-outline-primary">Fill</a>
 
             <a href="{{ url_for('preview_template', template_id=t.id) }}"
                class="btn btn-sm btn-outline-success">Preview</a>
 
-            <!-- Simple Details link which you can update if you have a details route -->
             <a href="#" class="btn btn-sm btn-outline-secondary">Details</a>
           </div>
         </div>

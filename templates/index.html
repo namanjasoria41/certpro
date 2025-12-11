@@ -1,44 +1,52 @@
 {% extends "base.html" %}
 
-{% block title %}CertPro - Home{% endblock %}
+{% block title %}Templates - Certificate Generator{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-  <h2 class="mb-4">All Certificate Templates</h2>
-
-  {% if categories %}
-  <div class="mb-3">
-    <strong>Categories:</strong>
-    {% for cat in categories %}
-      <a href="{{ url_for('category', category_name=cat) }}" class="badge bg-primary me-1">
-        {{ cat }}
-      </a>
-    {% endfor %}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>All Templates</h2>
+    {% if current_user.is_authenticated and current_user.is_admin %}
+      <a href="{{ url_for('admin_templates') }}" class="btn btn-outline-secondary">Admin</a>
+    {% endif %}
   </div>
-  {% endif %}
 
-  <div class="row">
-    {% for template in templates %}
-    <div class="col-md-4 mb-4">
-      <div class="card h-100">
-        <img src="{{ url_for('static', filename='templates/' + template.image_path) }}"
-             class="card-img-top" alt="{{ template.name }}">
+  {% if templates %}
+  <div class="row g-3">
+    {% for t in templates %}
+    <div class="col-sm-6 col-md-4 col-lg-3">
+      <div class="card h-100 shadow-sm">
+        {% if t.image_path %}
+        <img src="{{ url_for('static', filename='templates/' + t.image_path) }}"
+             class="card-img-top" alt="{{ t.name }}" style="height:160px; object-fit:cover;">
+        {% else %}
+        <div class="bg-light d-flex align-items-center justify-content-center" style="height:160px;">
+          <span class="text-muted">No image</span>
+        </div>
+        {% endif %}
+
         <div class="card-body d-flex flex-column">
-          <h5 class="card-title">{{ template.name }}</h5>
-          <p class="card-text">
-            Category: {{ template.category }}<br>
-            Price: ₹ {{ "%.2f"|format(template.price or 0) }}
-          </p>
-          <a href="{{ url_for('fill_template', template_id=template.id) }}"
-             class="btn btn-primary mt-auto">
-            Use Template
-          </a>
+          <h5 class="card-title mb-1">{{ t.name }}</h5>
+          <p class="card-text text-muted mb-2">{{ t.category or "Uncategorized" }}</p>
+          <p class="mb-3"><strong>₹{{ '%.2f'|format(t.price or 0) }}</strong></p>
+
+          <div class="mt-auto d-flex gap-2">
+            <a href="{{ url_for('template_fill', template_id=t.id) if 'template_fill' in globals() else url_for('fill_template', template_id=t.id) }}"
+               class="btn btn-sm btn-outline-primary">Fill</a>
+
+            <a href="{{ url_for('preview_template', template_id=t.id) }}"
+               class="btn btn-sm btn-outline-success">Preview</a>
+
+            <a href="{{ url_for('template_details', template_id=t.id) if 'template_details' in globals() else '#' }}"
+               class="btn btn-sm btn-outline-secondary">Details</a>
+          </div>
         </div>
       </div>
     </div>
-    {% else %}
-    <p>No templates available yet.</p>
     {% endfor %}
   </div>
+  {% else %}
+    <div class="alert alert-info">No templates available yet.</div>
+  {% endif %}
 </div>
 {% endblock %}

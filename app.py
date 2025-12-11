@@ -1,4 +1,5 @@
 import os
+import json
 import string
 import random
 from datetime import datetime, timedelta
@@ -24,6 +25,8 @@ from flask_login import (
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from PIL import Image, ImageDraw, ImageFont
+
+from sqlalchemy.exc import ProgrammingError
 
 from config import Config
 from models import (
@@ -101,6 +104,31 @@ def generate_referral_code(length: int = 8) -> str:
             return code
 
 
+def safe_query_user_by_phone(phone_value):
+    """
+    Attempt to query User by phone, but don't crash if the phone column doesn't exist.
+    Returns User or None.
+    """
+    try:
+        return User.query.filter_by(phone=phone_value).first()
+    except ProgrammingError:
+        # phone column may not exist in DB schema (no migration)
+        app.logger.warning("Phone column missing in DB; skipping phone lookup.")
+        return None
+    except Exception:
+        app.logger.exception("Unexpected error while querying by phone.")
+        return None
+
+
+def safe_query_user_by_email(email_value):
+    """Query user by email with minimal exception handling."""
+    try:
+        return User.query.filter_by(email=email_value).first()
+    except Exception:
+        app.logger.exception("Error querying user by email.")
+        return None
+
+
 # --------------------------------------------------------------------------
 # Auth routes
 # --------------------------------------------------------------------------
@@ -129,14 +157,14 @@ def register():
 
         # Check existing by email
         if email:
-            existing_email = User.query.filter_by(email=email).first()
+            existing_email = safe_query_user_by_email(email)
             if existing_email:
                 flash("An account with this email already exists. Please log in.", "warning")
                 return redirect(url_for("login"))
 
         # Check existing by phone
         if phone:
-            existing_phone = User.query.filter_by(phone=phone).first()
+            existing_phone = safe_query_user_by_phone(phone)
             if existing_phone:
                 flash("An account with this mobile number already exists. Please log in.", "warning")
                 return redirect(url_for("login"))
@@ -159,7 +187,11 @@ def register():
                     # Valid referral
                     user.referred_by = rc.owner
                     # Credit wallet of the new user
-                    user.wallet_balance += Config.REFERRAL_NEW_USER_BONUS
+                    try:
+                        user.wallet_balance += Config.REFERRAL_NEW_USER_BONUS
+                    except Exception:
+                        # If wallet_balance attribute missing or other error, ignore safe
+                        app.logger.exception("Failed to add new user referral bonus")
 
                     # Create a referral redemption entry
                     redemption = ReferralRedemption(
@@ -169,20 +201,31 @@ def register():
                     )
 
                     # Increase owner wallet balance
-                    rc.owner.wallet_balance += Config.REFERRAL_OWNER_BONUS
+                    try:
+                        rc.owner.wallet_balance += Config.REFERRAL_OWNER_BONUS
+                    except Exception:
+                        app.logger.exception("Failed to credit referral owner")
+
                     rc.used_count += 1
 
                     db.session.add(redemption)
             else:
                 flash("Invalid or inactive referral code.", "warning")
 
-        db.session.add(user)
-        db.session.commit()
+        try:
+            db.session.add(user)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            app.logger.exception("Failed to create user during registration.")
+            flash("Registration failed due to server error.", "danger")
+            return redirect(url_for("register"))
 
         flash("Registration successful. Please log in.", "success")
         return redirect(url_for("login"))
 
     return render_template("register.html")
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -198,10 +241,10 @@ def login():
         # Decide whether identifier is email or phone
         if "@" in identifier:
             # Treat as email
-            user = User.query.filter_by(email=identifier.lower()).first()
+            user = safe_query_user_by_email(identifier.lower())
         else:
-            # Treat as phone
-            user = User.query.filter_by(phone=identifier).first()
+            # Treat as phone (safe)
+            user = safe_query_user_by_phone(identifier)
 
         if user and check_password_hash(user.password, password):
             login_user(user)
@@ -211,7 +254,6 @@ def login():
             flash("Invalid credentials. Check your email/mobile and password.", "danger")
 
     return render_template("login.html")
-
 
 
 @app.route("/logout")
@@ -237,7 +279,7 @@ def forgot_password():
             flash("Passwords do not match.", "danger")
             return redirect(url_for("forgot_password"))
 
-        user = User.query.filter_by(email=email).first()
+        user = safe_query_user_by_email(email)
         if not user:
             flash("No account found with that email.", "warning")
             return redirect(url_for("forgot_password"))
@@ -323,12 +365,6 @@ def payment_verify():
     Verify Razorpay payment signature and route to either:
       - wallet topup flow (wallet_order_id, wallet_topup_amount)
       - template purchase flow (purchase_order_id, preview_info)
-
-    This function:
-      - verifies signature
-      - validates the order amount by fetching Razorpay order
-      - checks idempotency by looking for an existing transaction with this payment id
-      - applies DB changes and generates final certificate for purchases
     """
     data = request.form or request.get_json() or {}
     razorpay_order_id = data.get("razorpay_order_id")
@@ -366,9 +402,6 @@ def payment_verify():
     elif purchase_order_id and purchase_order_id == razorpay_order_id:
         flow = "purchase"
     else:
-        # Unknown order id — possible mismatch or expired session
-        # As an extra check, we can still try to fetch the order from razorpay and inspect notes,
-        # but safe default is to reject and ask user to contact support.
         app.logger.warning(
             "Payment verify: razorpay_order_id not found in session. posted=%s wallet=%s purchase=%s",
             razorpay_order_id,
@@ -390,10 +423,8 @@ def payment_verify():
     # 4) Idempotency: check if this payment_id already processed
     existing_tx = Transaction.query.filter_by(razorpay_payment_id=razorpay_payment_id).first()
     if existing_tx:
-        # Already processed this payment — just redirect accordingly
         app.logger.info("Payment already processed: %s", razorpay_payment_id)
         flash("Payment already processed.", "info")
-        # Cleanup session keys related to this flow
         if flow == "wallet":
             session.pop("wallet_order_id", None)
             session.pop("wallet_topup_amount", None)
@@ -401,12 +432,10 @@ def payment_verify():
         else:
             session.pop("purchase_order_id", None)
             session.pop("preview_info", None)
-            # If we stored filename in existing_tx.description or metadata, you can redirect to it.
             return redirect(url_for("wallet"))
 
     # Process flows
     if flow == "wallet":
-        # verify amount expected
         if wallet_amount is None:
             flash("Session missing topup amount. Contact support.", "warning")
             return redirect(url_for("wallet"))
@@ -417,7 +446,6 @@ def payment_verify():
             flash("Payment amount mismatch. Contact support.", "danger")
             return redirect(url_for("wallet"))
 
-        # All good — credit wallet and log transaction
         try:
             current_user.wallet_balance += wallet_amount
             tx = Transaction(
@@ -435,7 +463,6 @@ def payment_verify():
             flash("Failed to update wallet. Contact support.", "danger")
             return redirect(url_for("wallet"))
 
-        # Cleanup session
         session.pop("wallet_order_id", None)
         session.pop("wallet_topup_amount", None)
 
@@ -443,7 +470,6 @@ def payment_verify():
         return redirect(url_for("wallet"))
 
     elif flow == "purchase":
-        # verify expected amount using template price stored in preview_info
         if not preview_info or "template_id" not in preview_info:
             flash("Preview information missing after payment. Contact support.", "danger")
             return redirect(url_for("wallet"))
@@ -460,12 +486,10 @@ def payment_verify():
             flash("Payment amount mismatch for template purchase. Contact support.", "danger")
             return redirect(url_for("wallet"))
 
-        # Generate final certificate and create transaction record. Wrap in try/except
         try:
-            # Generate certificate image and log transaction; we avoid creating duplicate txs because we checked above.
+            # Generate final certificate and mark transaction with payment id
             filename = _generate_final_certificate_from_preview(current_user, template, preview_info)
 
-            # Mark the transaction with razorpay_payment_id to make it idempotent-safe
             tx = Transaction(
                 user_id=current_user.id,
                 amount=template.price,
@@ -481,14 +505,12 @@ def payment_verify():
             flash("Payment succeeded but we failed to generate the certificate. Contact support.", "danger")
             return redirect(url_for("wallet"))
 
-        # Cleanup session keys
         session.pop("purchase_order_id", None)
         session.pop("preview_info", None)
 
         flash("Payment successful! Certificate generated.", "success")
         return redirect(url_for("view_certificate", filename=filename))
 
-    # Fallback - shouldn't reach here
     flash("Payment processed but flow not recognized. Contact support.", "warning")
     return redirect(url_for("wallet"))
 
@@ -518,7 +540,10 @@ def admin_new_template():
     if request.method == "POST":
         name = request.form.get("name", "").strip()
         category = request.form.get("category", "").strip()
-        price = float(request.form.get("price") or 0)
+        try:
+            price = float(request.form.get("price") or 0)
+        except Exception:
+            price = 0.0
 
         image_file = request.files.get("image")
         if not image_file or image_file.filename == "":
@@ -544,8 +569,14 @@ def admin_new_template():
             image_path=filename,  # store only filename
         )
 
-        db.session.add(template)
-        db.session.commit()
+        try:
+            db.session.add(template)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            app.logger.exception("Failed to add new template")
+            flash("Failed to add template.", "danger")
+            return redirect(url_for("admin_new_template"))
 
         flash("Template added successfully.", "success")
         return redirect(url_for("admin_templates"))
@@ -582,7 +613,13 @@ def admin_edit_template(template_id):
         template.category = category
         template.price = price
 
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            app.logger.exception("Failed to update template.")
+            flash("Failed to update template.", "danger")
+            return redirect(url_for("admin_edit_template", template_id=template.id))
 
         flash("Template updated successfully.", "success")
         return redirect(url_for("admin_templates"))
@@ -613,16 +650,32 @@ def admin_delete_template(template_id):
         except Exception as e:
             app.logger.warning(f"Failed to delete template image {image_path}: {e}")
 
-    db.session.delete(template)
-    db.session.commit()
+    try:
+        db.session.delete(template)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        app.logger.exception("Failed to delete template")
+        flash("Failed to delete template.", "danger")
+        return redirect(url_for("admin_templates"))
 
     flash(f"Template '{template.name}' deleted successfully.", "success")
     return redirect(url_for("admin_templates"))
 
 
+# Compatibility adapter: some builder frontends post to /admin/templates/<id>/fields
+@app.route("/admin/templates/<int:template_id>/fields", methods=["POST"])
+@login_required
+def admin_templates_fields_compat(template_id):
+    # forward to canonical builder handler
+    return admin_template_builder(template_id)
+
+
+# Replace the existing admin_template_builder route with this robust handler
 @app.route("/admin/template/<int:template_id>/builder", methods=["GET", "POST"])
 @login_required
 def admin_template_builder(template_id):
+    # Admin-only
     if not getattr(current_user, "is_admin", False):
         flash("Access denied.", "danger")
         return redirect(url_for("index"))
@@ -630,33 +683,68 @@ def admin_template_builder(template_id):
     template = Template.query.get_or_404(template_id)
 
     if request.method == "POST":
-        data = request.get_json()
-        fields = data.get("fields", [])
+        # --- robust payload parsing ---
+        try:
+            if request.is_json:
+                data = request.get_json()
+            else:
+                fields_raw = request.form.get("fields") or request.form.get("data") or request.values.get("fields")
+                if fields_raw:
+                    data = json.loads(fields_raw)
+                else:
+                    raw = request.get_data(as_text=True)
+                    data = json.loads(raw) if raw else {}
+        except Exception as e:
+            app.logger.exception("Builder payload parse error")
+            return jsonify({"status": "error", "message": "Invalid JSON payload"}), 400
 
-        # Clear existing fields
-        TemplateField.query.filter_by(template_id=template.id).delete()
+        fields = data.get("fields") if isinstance(data, dict) else []
+        if fields is None:
+            fields = []
 
-        for field_data in fields:
-            field = TemplateField(
-                template_id=template.id,
-                name=field_data.get("name", ""),
-                x=field_data.get("x", 0),
-                y=field_data.get("y", 0),
-                font_size=field_data.get("font_size", 24),
-                color=field_data.get("color", "#000000"),
-                align=field_data.get("align", "left"),
-            )
-            db.session.add(field)
+        # --- write to DB with validation ---
+        try:
+            # delete existing fields
+            TemplateField.query.filter_by(template_id=template.id).delete()
+            for fd in fields:
+                # defensive conversions + max length checks
+                name = str(fd.get("name", "") or "")[:120]
+                try:
+                    x = int(fd.get("x", 0) or 0)
+                except Exception:
+                    x = 0
+                try:
+                    y = int(fd.get("y", 0) or 0)
+                except Exception:
+                    y = 0
+                try:
+                    font_size = int(fd.get("font_size", 24) or 24)
+                except Exception:
+                    font_size = 24
+                color = str(fd.get("color", "#000000") or "#000000")
+                align = str(fd.get("align", "left") or "left")
 
-        db.session.commit()
-        return jsonify({"status": "success"})
+                f = TemplateField(
+                    template_id=template.id,
+                    name=name,
+                    x=x,
+                    y=y,
+                    font_size=font_size,
+                    color=color,
+                    align=align,
+                )
+                db.session.add(f)
 
+            db.session.commit()
+            return jsonify({"status": "ok"})
+        except Exception as e:
+            app.logger.exception("Failed saving template fields")
+            db.session.rollback()
+            return jsonify({"status": "error", "message": "Database error"}), 500
+
+    # GET → render builder UI (existing template)
     fields = TemplateField.query.filter_by(template_id=template.id).all()
-    return render_template(
-        "admin_template_builder.html",
-        template=template,
-        fields=fields,
-    )
+    return render_template("admin_template_builder.html", template=template, fields=fields)
 
 
 # --------------------------------------------------------------------------
@@ -685,7 +773,7 @@ def admin_create_referral():
     max_uses = request.form.get("max_uses", "").strip()
     expires_in_days = request.form.get("expires_in_days", "").strip()
 
-    owner = User.query.filter_by(email=owner_email).first()
+    owner = safe_query_user_by_email(owner_email)
     if not owner:
         flash("User with that email not found.", "danger")
         return redirect(url_for("admin_referrals"))
@@ -729,11 +817,22 @@ def index():
     return render_template("index.html", templates=templates, categories=categories)
 
 
-
 @app.route("/category/<category_name>")
 def category(category_name):
     templates = Template.query.filter_by(category=category_name).all()
     return render_template("category.html", templates=templates, category=category_name)
+
+
+def _ensure_template_image_exists_or_redirect(template):
+    """
+    Helper that returns the absolute image path or performs a flash+redirect (returns None).
+    """
+    base_image_path = os.path.join(Config.TEMPLATE_FOLDER, template.image_path or "")
+    if not os.path.exists(base_image_path):
+        app.logger.error(f"Template image missing: {base_image_path} (template id {template.id})")
+        flash("Base template image not found on server. Please contact admin or re-upload the template.", "danger")
+        return None
+    return base_image_path
 
 
 @app.route("/template/<int:template_id>/fill", methods=["GET", "POST"])
@@ -743,17 +842,19 @@ def fill_template(template_id):
     fields = TemplateField.query.filter_by(template_id=template.id).all()
 
     if request.method == "POST":
-        if current_user.wallet_balance < template.price:
+        if current_user.wallet_balance < (template.price or 0):
             flash("Insufficient wallet balance. Please add money first.", "danger")
             return redirect(url_for("wallet"))
 
         # Collect user-entered values
         field_values = {field.name: request.form.get(field.name, "") for field in fields}
 
-        # Open base image
-        base_image_path = os.path.join(Config.TEMPLATE_FOLDER, template.image_path)
-        base_image = Image.open(base_image_path).convert("RGBA")
+        # Open base image (defensive)
+        base_image_path = _ensure_template_image_exists_or_redirect(template)
+        if not base_image_path:
+            return redirect(url_for("admin_templates") if getattr(current_user, "is_admin", False) else url_for("index"))
 
+        base_image = Image.open(base_image_path).convert("RGBA")
         draw = ImageDraw.Draw(base_image)
 
         for field in fields:
@@ -810,6 +911,7 @@ def fill_template(template_id):
 def view_certificate(filename):
     return send_from_directory(Config.GENERATED_FOLDER, filename)
 
+
 # ---------------------------
 # Preview + Purchase flow (Option A)
 # ---------------------------
@@ -817,11 +919,6 @@ def view_certificate(filename):
 @app.route("/template/<int:template_id>/preview", methods=["GET", "POST"])
 @login_required
 def preview_template(template_id):
-    """
-    Show a form where user enters field values and generate a temporary preview image (no charge).
-    GET: render form
-    POST: generate preview image and show it with pay/wallet options
-    """
     template = Template.query.get_or_404(template_id)
     fields = TemplateField.query.filter_by(template_id=template.id).all()
 
@@ -829,8 +926,11 @@ def preview_template(template_id):
         # collect field values
         field_values = {field.name: request.form.get(field.name, "") for field in fields}
 
-        # open base image and draw text (same as fill_template but saved to PREVIEW_FOLDER)
-        base_image_path = os.path.join(Config.TEMPLATE_FOLDER, template.image_path)
+        # open base image (defensive)
+        base_image_path = _ensure_template_image_exists_or_redirect(template)
+        if not base_image_path:
+            return redirect(url_for("admin_templates") if getattr(current_user, "is_admin", False) else url_for("index"))
+
         base_image = Image.open(base_image_path).convert("RGBA")
         draw = ImageDraw.Draw(base_image)
 
@@ -886,10 +986,6 @@ def preview_template(template_id):
 @app.route("/template/<int:template_id>/purchase", methods=["POST"])
 @login_required
 def purchase_template(template_id):
-    """
-    Create a Razorpay order for this template price and render payment page (or let user pay from wallet).
-    Expects that session['preview_info'] exists and corresponds to this template.
-    """
     template = Template.query.get_or_404(template_id)
 
     # confirm correct preview exists in session
@@ -900,7 +996,6 @@ def purchase_template(template_id):
 
     # If user selected wallet payment (form includes pay_with_wallet)
     if request.form.get("pay_with_wallet"):
-        # check balance
         if current_user.wallet_balance < (template.price or 0):
             flash("Insufficient wallet balance. Please add money first.", "danger")
             return redirect(url_for("wallet"))
@@ -962,7 +1057,10 @@ def _generate_final_certificate_from_preview(user, template, preview_info):
     """
     field_values = preview_info.get("field_values", {})
 
-    base_image_path = os.path.join(Config.TEMPLATE_FOLDER, template.image_path)
+    base_image_path = _ensure_template_image_exists_or_redirect(template)
+    if not base_image_path:
+        raise RuntimeError("Template base image missing when generating final certificate.")
+
     base_image = Image.open(base_image_path).convert("RGBA")
     draw = ImageDraw.Draw(base_image)
 
@@ -994,17 +1092,36 @@ def _generate_final_certificate_from_preview(user, template, preview_info):
     base_image.save(output_path)
 
     # Log transaction row (if not already logged by calling context)
-    transaction = Transaction(
-        user_id=user.id,
-        amount=template.price,
-        transaction_type="debit",
-        description=f"Certificate purchase - {template.name}",
-    )
-    db.session.add(transaction)
-    db.session.commit()
+    try:
+        transaction = Transaction(
+            user_id=user.id,
+            amount=template.price,
+            transaction_type="debit",
+            description=f"Certificate purchase - {template.name}",
+        )
+        db.session.add(transaction)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        app.logger.exception("Failed to log transaction when generating final certificate")
 
     return filename
 
+
+# Admin helper: list missing template files
+@app.route("/admin/templates/missing-files")
+@login_required
+def admin_templates_missing_files():
+    if not getattr(current_user, "is_admin", False):
+        flash("Access denied.", "danger")
+        return redirect(url_for("index"))
+
+    missing = []
+    for t in Template.query.all():
+        path = os.path.join(Config.TEMPLATE_FOLDER, t.image_path or "")
+        if not os.path.exists(path):
+            missing.append({"id": t.id, "name": t.name, "image_path": t.image_path})
+    return render_template("admin_missing_templates.html", missing=missing)
 
 
 # --------------------------------------------------------------------------
@@ -1013,7 +1130,3 @@ def _generate_final_certificate_from_preview(user, template, preview_info):
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-
-
-

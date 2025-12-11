@@ -319,45 +319,177 @@ def add_money():
 @app.route("/payment/verify", methods=["POST"])
 @login_required
 def payment_verify():
-    data = request.form
+    """
+    Verify Razorpay payment signature and route to either:
+      - wallet topup flow (wallet_order_id, wallet_topup_amount)
+      - template purchase flow (purchase_order_id, preview_info)
+
+    This function:
+      - verifies signature
+      - validates the order amount by fetching Razorpay order
+      - checks idempotency by looking for an existing transaction with this payment id
+      - applies DB changes and generates final certificate for purchases
+    """
+    data = request.form or request.get_json() or {}
+    razorpay_order_id = data.get("razorpay_order_id")
+    razorpay_payment_id = data.get("razorpay_payment_id")
+    razorpay_signature = data.get("razorpay_signature")
+
+    if not (razorpay_order_id and razorpay_payment_id and razorpay_signature):
+        flash("Missing payment data.", "danger")
+        return redirect(url_for("wallet"))
 
     params_dict = {
-        "razorpay_order_id": data.get("razorpay_order_id"),
-        "razorpay_payment_id": data.get("razorpay_payment_id"),
-        "razorpay_signature": data.get("razorpay_signature"),
+        "razorpay_order_id": razorpay_order_id,
+        "razorpay_payment_id": razorpay_payment_id,
+        "razorpay_signature": razorpay_signature,
     }
 
+    # 1) Verify signature
     try:
         razorpay_client.utility.verify_payment_signature(params_dict)
     except SignatureVerificationError:
-        flash(
-            "Payment verification failed. If money was deducted, contact support.",
-            "danger",
-        )
+        flash("Payment verification failed. If money was deducted, contact support.", "danger")
         return redirect(url_for("wallet"))
 
-    amount = session.pop("wallet_topup_amount", None)
-    session_order_id = session.pop("wallet_order_id", None)
+    # 2) Determine which flow this belongs to (wallet topup vs template purchase)
+    wallet_order_id = session.get("wallet_order_id")
+    wallet_amount = session.get("wallet_topup_amount")  # rupees as float
 
-    if not amount or session_order_id != params_dict["razorpay_order_id"]:
-        flash(
-            "Payment verified but session mismatched or expired. Contact support.",
-            "warning",
+    purchase_order_id = session.get("purchase_order_id")
+    preview_info = session.get("preview_info")  # dict or None
+
+    # Basic sanity: posted order_id must match one of our stored orders
+    flow = None
+    if wallet_order_id and wallet_order_id == razorpay_order_id:
+        flow = "wallet"
+    elif purchase_order_id and purchase_order_id == razorpay_order_id:
+        flow = "purchase"
+    else:
+        # Unknown order id — possible mismatch or expired session
+        # As an extra check, we can still try to fetch the order from razorpay and inspect notes,
+        # but safe default is to reject and ask user to contact support.
+        app.logger.warning(
+            "Payment verify: razorpay_order_id not found in session. posted=%s wallet=%s purchase=%s",
+            razorpay_order_id,
+            wallet_order_id,
+            purchase_order_id,
         )
+        flash("Payment processed but session expired or mismatched. Contact support.", "warning")
         return redirect(url_for("wallet"))
 
-    # Credit wallet
-    current_user.wallet_balance += amount
-    transaction = Transaction(
-        user_id=current_user.id,
-        amount=amount,
-        transaction_type="credit",
-        description="Wallet recharge via Razorpay",
-    )
-    db.session.add(transaction)
-    db.session.commit()
+    # 3) Fetch order from Razorpay and verify amount matches expected (paise)
+    try:
+        razorpay_order = razorpay_client.order.fetch(razorpay_order_id)
+        razorpay_order_amount = int(razorpay_order.get("amount", 0))  # in paise
+    except Exception as e:
+        app.logger.exception("Failed to fetch razorpay order %s: %s", razorpay_order_id, e)
+        flash("Could not verify payment details with Razorpay. Contact support.", "danger")
+        return redirect(url_for("wallet"))
 
-    flash(f"Payment successful! Wallet recharged with ₹{amount:.2f}", "success")
+    # 4) Idempotency: check if this payment_id already processed
+    existing_tx = Transaction.query.filter_by(razorpay_payment_id=razorpay_payment_id).first()
+    if existing_tx:
+        # Already processed this payment — just redirect accordingly
+        app.logger.info("Payment already processed: %s", razorpay_payment_id)
+        flash("Payment already processed.", "info")
+        # Cleanup session keys related to this flow
+        if flow == "wallet":
+            session.pop("wallet_order_id", None)
+            session.pop("wallet_topup_amount", None)
+            return redirect(url_for("wallet"))
+        else:
+            session.pop("purchase_order_id", None)
+            session.pop("preview_info", None)
+            # If we stored filename in existing_tx.description or metadata, you can redirect to it.
+            return redirect(url_for("wallet"))
+
+    # Process flows
+    if flow == "wallet":
+        # verify amount expected
+        if wallet_amount is None:
+            flash("Session missing topup amount. Contact support.", "warning")
+            return redirect(url_for("wallet"))
+
+        expected_paise = int(round(wallet_amount * 100))
+        if razorpay_order_amount != expected_paise:
+            app.logger.warning("Wallet amount mismatch: expected=%s got=%s", expected_paise, razorpay_order_amount)
+            flash("Payment amount mismatch. Contact support.", "danger")
+            return redirect(url_for("wallet"))
+
+        # All good — credit wallet and log transaction
+        try:
+            current_user.wallet_balance += wallet_amount
+            tx = Transaction(
+                user_id=current_user.id,
+                amount=wallet_amount,
+                transaction_type="credit",
+                description="Wallet recharge via Razorpay",
+                razorpay_payment_id=razorpay_payment_id,
+            )
+            db.session.add(tx)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.exception("Failed to credit wallet for payment %s: %s", razorpay_payment_id, e)
+            flash("Failed to update wallet. Contact support.", "danger")
+            return redirect(url_for("wallet"))
+
+        # Cleanup session
+        session.pop("wallet_order_id", None)
+        session.pop("wallet_topup_amount", None)
+
+        flash(f"Wallet recharged with ₹{wallet_amount:.2f}", "success")
+        return redirect(url_for("wallet"))
+
+    elif flow == "purchase":
+        # verify expected amount using template price stored in preview_info
+        if not preview_info or "template_id" not in preview_info:
+            flash("Preview information missing after payment. Contact support.", "danger")
+            return redirect(url_for("wallet"))
+
+        template_id = int(preview_info["template_id"])
+        template = Template.query.get(template_id)
+        if not template:
+            flash("Template not found after payment. Contact support.", "danger")
+            return redirect(url_for("wallet"))
+
+        expected_paise = int(round((template.price or 0) * 100))
+        if razorpay_order_amount != expected_paise:
+            app.logger.warning("Purchase amount mismatch: expected=%s got=%s", expected_paise, razorpay_order_amount)
+            flash("Payment amount mismatch for template purchase. Contact support.", "danger")
+            return redirect(url_for("wallet"))
+
+        # Generate final certificate and create transaction record. Wrap in try/except
+        try:
+            # Generate certificate image and log transaction; we avoid creating duplicate txs because we checked above.
+            filename = _generate_final_certificate_from_preview(current_user, template, preview_info)
+
+            # Mark the transaction with razorpay_payment_id to make it idempotent-safe
+            tx = Transaction(
+                user_id=current_user.id,
+                amount=template.price,
+                transaction_type="debit",
+                description=f"Certificate purchase - {template.name}",
+                razorpay_payment_id=razorpay_payment_id,
+            )
+            db.session.add(tx)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.exception("Failed to finalize template purchase for payment %s: %s", razorpay_payment_id, e)
+            flash("Payment succeeded but we failed to generate the certificate. Contact support.", "danger")
+            return redirect(url_for("wallet"))
+
+        # Cleanup session keys
+        session.pop("purchase_order_id", None)
+        session.pop("preview_info", None)
+
+        flash("Payment successful! Certificate generated.", "success")
+        return redirect(url_for("view_certificate", filename=filename))
+
+    # Fallback - shouldn't reach here
+    flash("Payment processed but flow not recognized. Contact support.", "warning")
     return redirect(url_for("wallet"))
 
 
@@ -881,6 +1013,7 @@ def _generate_final_certificate_from_preview(user, template, preview_info):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

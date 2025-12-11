@@ -110,161 +110,79 @@
 </div>
 
 <script>
-  // Convert passed-in Jinja `fields` to JS
-  const existingFields = JSON.parse('{{ fields|tojson | safe }}' || '[]');
-  const templateId = {{ template.id }};
-  const imageEl = document.getElementById('templateImage');
+// assume existingFields and templateId already set as before
 
-  function showAlert(msg, type='success') {
-    const html = `<div class="alert alert-${type} alert-dismissible" role="alert">
-      ${msg}
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>`;
-    document.getElementById('alertPlaceholder').innerHTML = html;
-  }
-
-  // Render fields list
-  function renderFields() {
-    const container = document.getElementById('fieldsList');
-    if (!existingFields || existingFields.length === 0) {
-      container.innerHTML = '<div class="text-muted small">No fields defined yet.</div>';
-      return;
-    }
-
-    let html = '<div class="list-group">';
-    existingFields.forEach((f, idx) => {
-      html += `<div class="list-group-item d-flex justify-content-between align-items-start">
-        <div>
-          <div><strong>${escapeHtml(f.name || '(no-name)')}</strong> <small class="text-muted">(${f.font_size}px, ${f.align})</small></div>
-          <div class="small text-muted">x:${f.x} y:${f.y} color:${f.color}</div>
-        </div>
-        <div class="btn-group btn-group-sm" role="group">
-          <button class="btn btn-outline-primary" onclick="startEdit(${idx})">Edit</button>
-          <button class="btn btn-outline-danger" onclick="removeField(${idx})">Delete</button>
-        </div>
-      </div>`;
+async function postTo(url, bodyObj) {
+  // try sending JSON first
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyObj),
     });
-    html += '</div>';
-    container.innerHTML = html;
+    const data = await r.json().catch(()=>({}));
+    return { ok: r.ok, status: r.status, data };
+  } catch (e) {
+    console.warn("JSON POST failed to", url, e);
   }
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, function(m) {
-      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m];
+  // fallback: send as form-encoded 'fields' param
+  try {
+    const form = new URLSearchParams();
+    form.append("fields", JSON.stringify(bodyObj.fields || []));
+    const r2 = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
     });
+    const data2 = await r2.json().catch(()=>({}));
+    return { ok: r2.ok, status: r2.status, data: data2 };
+  } catch (e2) {
+    console.warn("Form POST failed to", url, e2);
+    return { ok: false, status: 0, data: {} };
   }
+}
 
-  function startEdit(idx) {
-    const f = existingFields[idx];
-    document.getElementById('editIndex').value = idx;
-    document.getElementById('fieldName').value = f.name || '';
-    document.getElementById('fieldX').value = f.x || 0;
-    document.getElementById('fieldY').value = f.y || 0;
-    document.getElementById('fieldFont').value = f.font_size || 24;
-    document.getElementById('fieldColor').value = f.color || '#000000';
-    document.getElementById('fieldAlign').value = f.align || 'left';
-    document.getElementById('addUpdateBtn').textContent = 'Update field';
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
+async function builderSave() {
+  const payload = { fields: existingFields };
 
-  function removeField(idx) {
-    if (!confirm('Delete this field?')) return;
-    existingFields.splice(idx, 1);
-    renderFields();
-    showAlert('Field removed', 'warning');
-  }
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
 
-  function clearForm() {
-    document.getElementById('editIndex').value = -1;
-    document.getElementById('fieldName').value = '';
-    document.getElementById('fieldX').value = '';
-    document.getElementById('fieldY').value = '';
-    document.getElementById('fieldFont').value = 24;
-    document.getElementById('fieldColor').value = '#000000';
-    document.getElementById('fieldAlign').value = 'left';
-    document.getElementById('addUpdateBtn').textContent = 'Add field';
-  }
+  const endpoints = [
+    `/admin/template/${templateId}/builder`,
+    `/admin/templates/${templateId}/fields`  // compatibility
+  ];
 
-  document.getElementById('clearBtn').addEventListener('click', clearForm);
-
-  document.getElementById('addUpdateBtn').addEventListener('click', () => {
-    const idx = parseInt(document.getElementById('editIndex').value || -1, 10);
-    const name = document.getElementById('fieldName').value.trim();
-    const x = parseInt(document.getElementById('fieldX').value || 0, 10) || 0;
-    const y = parseInt(document.getElementById('fieldY').value || 0, 10) || 0;
-    const font_size = parseInt(document.getElementById('fieldFont').value || 24, 10) || 24;
-    const color = document.getElementById('fieldColor').value.trim() || '#000000';
-    const align = document.getElementById('fieldAlign').value || 'left';
-
-    if (!name) {
-      showAlert('Field name is required', 'danger');
-      return;
-    }
-
-    const fieldObj = { name, x, y, font_size, color, align };
-
-    if (idx >= 0 && existingFields[idx]) {
-      existingFields[idx] = fieldObj;
-      showAlert('Field updated', 'success');
-    } else {
-      existingFields.push(fieldObj);
-      showAlert('Field added', 'success');
-    }
-
-    clearForm();
-    renderFields();
-  });
-
-  // Pick clicked coordinates on image and fill X/Y
-  if (imageEl) {
-    imageEl.addEventListener('click', (ev) => {
-      const rect = imageEl.getBoundingClientRect();
-      // compute coords relative to natural image scale -> use shown image coordinates (pixel on displayed image)
-      // Because we save raw x/y assumed to be pixel coordinates on saved image, we need to map displayed coords -> natural.
-      // If the backend expects coordinates on the original image size, adjust via naturalWidth/naturalHeight scaling.
-      const clickX = Math.round((ev.clientX - rect.left) * (imageEl.naturalWidth / rect.width));
-      const clickY = Math.round((ev.clientY - rect.top) * (imageEl.naturalHeight / rect.height));
-
-      document.getElementById('fieldX').value = clickX;
-      document.getElementById('fieldY').value = clickY;
-      document.getElementById('clickCoords').textContent = `Clicked at (x: ${clickX}, y: ${clickY}) — values inserted into X/Y fields.`;
-    });
-  }
-
-  async function builderSave() {
-    const payload = { fields: existingFields };
-
-    // disable button while saving
-    const btn = document.getElementById('saveBtn');
-    btn.disabled = true;
-    btn.textContent = 'Saving...';
-
+  let lastErr = null;
+  for (const ep of endpoints) {
     try {
-      const res = await fetch(`/admin/template/${templateId}/builder`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.status && (data.status === 'ok' || data.status === 'success')) {
+      const res = await postTo(ep, payload);
+      if (res.ok && res.data && (res.data.status === 'ok' || res.data.status === 'success')) {
         showAlert('Fields saved successfully', 'success');
-        // small delay then reload to reflect any server-side canonicalization
-        setTimeout(()=> location.reload(), 800);
+        setTimeout(()=> location.reload(), 700);
+        return;
       } else {
-        const msg = data.message || (data.status ? JSON.stringify(data) : 'Save failed');
-        showAlert(`Save failed: ${msg}`, 'danger');
+        lastErr = res;
+        console.warn("save attempt failed", ep, res);
+        // If 404 specifically, continue to next endpoint
+        if (res.status === 404) continue;
       }
     } catch (err) {
-      console.error(err);
-      showAlert('Network or server error while saving. Check logs.', 'danger');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Save';
+      console.error("Error posting to", ep, err);
+      lastErr = err;
     }
   }
 
-  // initial render
-  renderFields();
+  // If we get here, all endpoints failed
+  let msg = "Save failed.";
+  if (lastErr && lastErr.data && lastErr.data.message) msg += " " + lastErr.data.message;
+  showAlert(msg, 'danger');
+  btn.disabled = false;
+  btn.textContent = 'Save';
+}
 </script>
+
 {% endblock %}
+

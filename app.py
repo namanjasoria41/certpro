@@ -746,6 +746,80 @@ def admin_template_builder(template_id):
     fields = TemplateField.query.filter_by(template_id=template.id).all()
     return render_template("admin_template_builder.html", template=template, fields=fields)
 
+# --- Compatibility endpoint for older JS or other clients ---
+@app.route("/admin/templates/<int:template_id>/fields", methods=["POST"])
+@login_required
+def admin_template_fields_compat(template_id):
+    """
+    Backwards-compatible endpoint to accept field JSON from older frontends.
+    Reuses the same logic as /admin/template/<id>/builder.
+    """
+    # quick admin check
+    if not getattr(current_user, "is_admin", False):
+        app.logger.warning("Non-admin attempted to POST fields: user=%s template=%s", getattr(current_user, "id", None), template_id)
+        return jsonify({"status": "error", "message": "access denied"}), 403
+
+    # Try parsing payload (json or form field 'fields')
+    try:
+        if request.is_json:
+            data = request.get_json()
+        else:
+            fields_raw = request.form.get("fields") or request.form.get("data") or request.values.get("fields")
+            if fields_raw:
+                data = json.loads(fields_raw)
+            else:
+                raw = request.get_data(as_text=True)
+                data = json.loads(raw) if raw else {}
+    except Exception as e:
+        app.logger.exception("compat: failed to parse fields payload")
+        return jsonify({"status": "error", "message": "invalid JSON payload"}), 400
+
+    # Validate fields list
+    fields = data.get("fields") if isinstance(data, dict) else []
+    if fields is None:
+        fields = []
+
+    # Now reuse same DB-saving logic as builder route (duplicate minimal part)
+    try:
+        t = Template.query.get_or_404(template_id)
+        TemplateField.query.filter_by(template_id=t.id).delete()
+        for fd in fields:
+            name = str(fd.get("name", "") or "")[:120]
+            try:
+                x = int(fd.get("x", 0) or 0)
+            except Exception:
+                x = 0
+            try:
+                y = int(fd.get("y", 0) or 0)
+            except Exception:
+                y = 0
+            try:
+                font_size = int(fd.get("font_size", 24) or 24)
+            except Exception:
+                font_size = 24
+            color = str(fd.get("color", "#000000") or "#000000")
+            align = str(fd.get("align", "left") or "left")
+
+            f = TemplateField(
+                template_id=t.id,
+                name=name,
+                x=x,
+                y=y,
+                font_size=font_size,
+                color=color,
+                align=align,
+            )
+            db.session.add(f)
+
+        db.session.commit()
+        app.logger.info("Saved %d fields for template %s via compat endpoint", len(fields), template_id)
+        return jsonify({"status": "ok", "saved": len(fields)})
+    except Exception as e:
+        app.logger.exception("compat: failed saving fields to DB for template %s", template_id)
+        db.session.rollback()
+        return jsonify({"status": "error", "message": "database error"}), 500
+
+
 
 # --------------------------------------------------------------------------
 # Admin: Referral Codes
@@ -1130,3 +1204,4 @@ def admin_templates_missing_files():
 
 if __name__ == "__main__":
     app.run(debug=True)
+

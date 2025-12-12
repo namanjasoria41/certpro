@@ -1,4 +1,4 @@
-# Full cleaned app.py
+# Full app.py
 import os
 import json
 import string
@@ -142,7 +142,7 @@ def _ensure_template_image_exists_or_redirect(template):
     """
     Return absolute image path or None (and flash) if missing.
     """
-    base_image_path = os.path.join(Config.TEMPLATE_FOLDER, template.image_path or "")
+    base_image_path = os.path.join(getattr(Config, "TEMPLATE_FOLDER", "static/templates"), template.image_path or "")
     if not os.path.exists(base_image_path):
         app.logger.error(f"Template image missing: {base_image_path} (template id {template.id})")
         flash("Base template image not found on server. Please contact admin or re-upload the template.", "danger")
@@ -162,8 +162,157 @@ def set_field_attr_safe(field_obj, attr_name, value):
             app.logger.exception("Failed to set attribute %s on TemplateField", attr_name)
 
 
+def get_font_path_for_token(token: str):
+    """
+    Resolve a font token (e.g. 'roboto') to an actual TTF path using Config.FONT_FAMILIES,
+    falling back to Config.FONT_PATH or None.
+    """
+    try:
+        families = getattr(Config, "FONT_FAMILIES", None)
+        if isinstance(families, dict):
+            path = families.get(token)
+            if path and os.path.exists(path):
+                return path
+        # fallback to default
+        default_fp = getattr(Config, "FONT_PATH", None)
+        if default_fp and os.path.exists(default_fp):
+            return default_fp
+    except Exception:
+        app.logger.exception("Error resolving font path for token %s", token)
+    return None
+
+
+def _safe_int(v, default=0):
+    try:
+        if v is None or v == "":
+            return default
+        return int(v)
+    except Exception:
+        try:
+            return int(float(v))
+        except Exception:
+            return default
+
+
+# Compose a PIL image with the provided fields and form data / file mapping.
+# `fields` is an iterable of TemplateField model instances.
+# `values` is a dict of text values (key -> text).
+# `file_map` is a dict mapping field_name -> path to uploaded file (on disk) (optional).
+def compose_image_from_fields(base_image_path, fields, values=None, file_map=None):
+    values = values or {}
+    file_map = file_map or {}
+
+    base_image = Image.open(base_image_path).convert("RGBA")
+    draw = ImageDraw.Draw(base_image)
+
+    for field in fields:
+        # canonical key
+        key = getattr(field, "field_name", None) or getattr(field, "name", None)
+        if not key:
+            continue
+
+        # detect field type
+        field_type = getattr(field, "field_type", None) or getattr(field, "type", None) or "text"
+
+        # coordinates & geometry
+        x = getattr(field, "x", None)
+        if x is None:
+            x = getattr(field, "x_position", 0) or 0
+        y = getattr(field, "y", None)
+        if y is None:
+            y = getattr(field, "y_position", 0) or 0
+
+        # common props
+        color = getattr(field, "color", None) or getattr(field, "font_color", None) or "#000000"
+        font_size = getattr(field, "font_size", None) or getattr(field, "size", None) or 24
+        align = getattr(field, "align", "left") or "left"
+        width = getattr(field, "width", None)
+        height = getattr(field, "height", None)
+        shape = getattr(field, "shape", None) or "rect"
+        font_family_token = getattr(field, "font_family", None) or getattr(field, "font", None) or "default"
+
+        if (field_type or "text").lower() == "image":
+            # for image fields, look for a file in file_map
+            file_path = file_map.get(key)
+            if not file_path or not os.path.exists(file_path):
+                app.logger.debug("No file to paste for image field %s", key)
+                continue
+            try:
+                user_img = Image.open(file_path).convert("RGBA")
+            except Exception:
+                app.logger.exception("Failed to open image file for field %s", key)
+                continue
+
+            # optionally resize
+            if width and height:
+                try:
+                    user_img = user_img.resize((int(width), int(height)), Image.LANCZOS)
+                except Exception:
+                    app.logger.exception("Failed resizing uploaded image for field %s", key)
+
+            if shape == "circle":
+                # make circular alpha mask
+                w, h = user_img.size
+                # ensure square for nice circle
+                size = min(w, h)
+                left = (w - size) // 2
+                top = (h - size) // 2
+                user_img = user_img.crop((left, top, left + size, top + size))
+                mask = Image.new("L", user_img.size, 0)
+                mdraw = ImageDraw.Draw(mask)
+                mdraw.ellipse((0, 0, user_img.size[0], user_img.size[1]), fill=255)
+                user_img.putalpha(mask)
+
+            # paste at x,y (top-left). Use alpha_composite if possible.
+            try:
+                base_image.alpha_composite(user_img, dest=(int(x), int(y)))
+            except Exception:
+                try:
+                    base_image.paste(user_img, (int(x), int(y)), user_img)
+                except Exception:
+                    app.logger.exception("Failed to paste image for field %s", key)
+
+        else:
+            # TEXT
+            text = values.get(key, "")
+            if text is None or text == "":
+                # skip empty text fields to avoid accidental blanking
+                continue
+
+            # resolve font path
+            font_path = get_font_path_for_token(font_family_token)
+            try:
+                if font_path:
+                    font = ImageFont.truetype(font_path, int(font_size))
+                else:
+                    font = ImageFont.load_default()
+            except Exception:
+                app.logger.exception("Loading font failed for token %s", font_family_token)
+                font = ImageFont.load_default()
+
+            # compute width for alignment
+            try:
+                text_bbox = draw.textbbox((0, 0), text, font=font)
+                text_width = text_bbox[2] - text_bbox[0]
+            except Exception:
+                text_width = 0
+
+            tx = int(x)
+            if align == "center":
+                tx = int(tx - (text_width // 2))
+            elif align == "right":
+                tx = int(tx - text_width)
+
+            try:
+                draw.text((tx, int(y)), text, fill=color, font=font)
+            except Exception:
+                app.logger.exception("Failed to draw text for field %s", key)
+
+    return base_image
+
+
 # --------------------------------------------------------------------------
-# Auth routes
+# Auth routes (register/login/logout/forgot-password)
 # --------------------------------------------------------------------------
 
 @app.route("/register", methods=["GET", "POST"])
@@ -582,7 +731,7 @@ def admin_new_template():
             return redirect(url_for("admin_new_template"))
 
         filename = secure_filename(image_file.filename)
-        save_dir = Config.TEMPLATE_FOLDER
+        save_dir = getattr(Config, "TEMPLATE_FOLDER", "static/templates")
         os.makedirs(save_dir, exist_ok=True)
         save_path = os.path.join(save_dir, filename)
         image_file.save(save_path)
@@ -648,7 +797,7 @@ def admin_edit_template(template_id):
         flash("Template updated successfully.", "success")
         return redirect(url_for("admin_templates"))
 
-    return render_template("admin_edit_template.html", template=template)
+    return render_template("admin_edit_template.html", template=template, )
 
 
 @app.route("/admin/template/<int:template_id>/delete", methods=["POST"])
@@ -665,7 +814,7 @@ def admin_delete_template(template_id):
 
     # Delete the image file if it exists
     if template.image_path:
-        image_path = os.path.join(Config.TEMPLATE_FOLDER, template.image_path)
+        image_path = os.path.join(getattr(Config, "TEMPLATE_FOLDER", "static/templates"), template.image_path)
         try:
             if os.path.exists(image_path):
                 os.remove(image_path)
@@ -751,6 +900,7 @@ def save_template_fields(template, fields_list):
     try:
         # Delete existing fields for this template
         TemplateField.query.filter_by(template_id=template.id).delete()
+        # flush to ensure deletes queued
         db.session.flush()
 
         for idx, fd in enumerate(fields_list):
@@ -759,41 +909,30 @@ def save_template_fields(template, fields_list):
             # Guarantee non-empty field_name (DB requires it)
             field_name_val = raw_name or f"field_{idx+1}"
 
-            # X/Y numeric safe conversion (fall back to 0)
-            def to_int(v, default=0):
-                try:
-                    if v is None or v == "":
-                        return default
-                    return int(v)
-                except Exception:
-                    try:
-                        return int(float(v))
-                    except Exception:
-                        return default
-
-            x_val = to_int(fd.get("x", fd.get("x_position", fd.get("left", 0))))
-            y_val = to_int(fd.get("y", fd.get("y_position", fd.get("top", 0))))
-            font_size_val = to_int(fd.get("font_size", fd.get("size", 24)), default=24)
+            x_val = _safe_int(fd.get("x", fd.get("x_position", fd.get("left", 0))))
+            y_val = _safe_int(fd.get("y", fd.get("y_position", fd.get("top", 0))))
+            font_size_val = _safe_int(fd.get("font_size", fd.get("size", 24)), default=24)
 
             color_val = (fd.get("color") or fd.get("font_color") or "#000000") or "#000000"
             align_val = (fd.get("align") or "left") or "left"
             field_type_val = (fd.get("field_type") or fd.get("type") or "text") or "text"
+            font_family_val = fd.get("font_family") or fd.get("font") or "default"
+            width_val = fd.get("width")
+            height_val = fd.get("height")
+            shape_val = fd.get("shape")
 
-            # Create instance
             obj = TemplateField()
 
             # --- Explicitly set canonical DB column names to avoid schema mismatch ---
-            # Always set template_id
             try:
                 obj.template_id = template.id
             except Exception:
                 app.logger.exception("Could not set template_id on TemplateField instance")
 
-            # Always set both 'field_name' and 'name' (some schemas require one or the other)
+            # field_name / name
             try:
                 obj.field_name = field_name_val
             except Exception:
-                # If model doesn't have attribute, set 'name' only
                 try:
                     obj.name = field_name_val
                 except Exception:
@@ -803,7 +942,7 @@ def save_template_fields(template, fields_list):
             except Exception:
                 pass
 
-            # Always set both x_position and x (and y_position and y)
+            # x & x_position
             try:
                 obj.x_position = x_val
             except Exception:
@@ -816,6 +955,7 @@ def save_template_fields(template, fields_list):
             except Exception:
                 pass
 
+            # y & y_position
             try:
                 obj.y_position = y_val
             except Exception:
@@ -861,24 +1001,34 @@ def save_template_fields(template, fields_list):
                 except Exception:
                     pass
 
-            # Optional props: width, height, shape if provided
+            # font family
             try:
-                if "width" in fd:
-                    obj.width = to_int(fd.get("width"))
-                if "height" in fd:
-                    obj.height = to_int(fd.get("height"))
-                if "shape" in fd:
-                    obj.shape = fd.get("shape")
+                obj.font_family = font_family_val
+            except Exception:
+                try:
+                    obj.font = font_family_val
+                except Exception:
+                    pass
+
+            # Optional props: width, height, shape
+            try:
+                if width_val is not None and width_val != "":
+                    obj.width = _safe_int(width_val)
+                if height_val is not None and height_val != "":
+                    obj.height = _safe_int(height_val)
+                if shape_val:
+                    obj.shape = shape_val
             except Exception:
                 pass
 
-            # Final defensive debug: log attributes we intend to insert (good for debugging on staging)
+            # Debug logging
             try:
-                app.logger.debug("Saving TemplateField attrs: template_id=%s field_name=%s x_pos=%s y_pos=%s",
+                app.logger.debug("Saving TemplateField: template_id=%s field_name=%s x_pos=%s y_pos=%s type=%s",
                                  getattr(obj, "template_id", None),
                                  getattr(obj, "field_name", getattr(obj, "name", None)),
                                  getattr(obj, "x_position", getattr(obj, "x", None)),
-                                 getattr(obj, "y_position", getattr(obj, "y", None)))
+                                 getattr(obj, "y_position", getattr(obj, "y", None)),
+                                 getattr(obj, "field_type", None))
             except Exception:
                 pass
 
@@ -894,7 +1044,6 @@ def save_template_fields(template, fields_list):
         db.session.rollback()
         app.logger.exception("Unexpected error saving template fields: %s", e)
         return False, {"message": "Unknown database error while saving fields."}
-
 
 
 # ---------------------------
@@ -949,14 +1098,25 @@ def admin_template_builder(template_id):
         font_size = getattr(f, "font_size", None) or getattr(f, "size", 24) or 24
         color = getattr(f, "color", None) or getattr(f, "font_color", None) or "#000000"
         align = getattr(f, "align", "left") or "left"
+        field_type = getattr(f, "field_type", None) or getattr(f, "type", None) or "text"
+        font_family = getattr(f, "font_family", None) or getattr(f, "font", None) or "default"
+        width = getattr(f, "width", None)
+        height = getattr(f, "height", None)
+        shape = getattr(f, "shape", None) or "rect"
 
         normalized.append({
             "name": name,
+            "field_name": name,
             "x": int(x or 0),
             "y": int(y or 0),
             "font_size": int(font_size or 24),
             "color": color or "#000000",
             "align": align,
+            "field_type": field_type,
+            "font_family": font_family,
+            "width": width,
+            "height": height,
+            "shape": shape,
         })
 
     # Render the admin builder template (assumes admin_template_builder.html exists)
@@ -1007,10 +1167,35 @@ def admin_templates_missing_files():
 
     missing = []
     for t in Template.query.all():
-        path = os.path.join(Config.TEMPLATE_FOLDER, t.image_path or "")
+        path = os.path.join(getattr(Config, "TEMPLATE_FOLDER", "static/templates"), t.image_path or "")
         if not os.path.exists(path):
             missing.append({"id": t.id, "name": t.name, "image_path": t.image_path})
     return render_template("admin_missing_templates.html", missing=missing)
+
+
+@app.route("/admin/template/<int:template_id>/restore-image", methods=["POST"])
+@login_required
+def admin_restore_template_image(template_id):
+    if not getattr(current_user, "is_admin", False):
+        flash("Access denied.", "danger")
+        return redirect(url_for("index"))
+    template = Template.query.get_or_404(template_id)
+    image_file = request.files.get("image")
+    if not image_file or image_file.filename == "":
+        flash("No file uploaded", "danger")
+        return redirect(url_for("admin_templates_missing_files"))
+    if not allowed_file(image_file.filename):
+        flash("Only JPG/PNG allowed", "danger")
+        return redirect(url_for("admin_templates_missing_files"))
+    filename = secure_filename(image_file.filename)
+    save_dir = getattr(Config, "TEMPLATE_FOLDER", "static/templates")
+    os.makedirs(save_dir, exist_ok=True)
+    save_path = os.path.join(save_dir, filename)
+    image_file.save(save_path)
+    template.image_path = filename
+    db.session.commit()
+    flash("Template image restored.", "success")
+    return redirect(url_for("admin_templates_missing_files"))
 
 
 # --------------------------------------------------------------------------
@@ -1042,6 +1227,22 @@ def category(category_name):
     return render_template("category.html", templates=templates, category=category_name)
 
 
+# Serve generated certificates
+@app.route("/generated/<filename>")
+@login_required
+def view_certificate(filename):
+    generated_folder = getattr(Config, "GENERATED_FOLDER", "static/generated")
+    return send_from_directory(generated_folder, filename)
+
+
+# Serve preview images (preview flow saves preview images in PREVIEW_FOLDER)
+@app.route("/preview/<filename>")
+@login_required
+def view_preview(filename):
+    preview_folder = getattr(Config, "PREVIEW_FOLDER", "static/previews")
+    return send_from_directory(preview_folder, filename)
+
+
 @app.route("/template/<int:template_id>/fill", methods=["GET", "POST"])
 @login_required
 def fill_template(template_id):
@@ -1053,83 +1254,74 @@ def fill_template(template_id):
             flash("Insufficient wallet balance. Please add money first.", "danger")
             return redirect(url_for("wallet"))
 
-        # Collect user-entered values
+        # Collect user-entered text values and prepare file_map for any image fields
         field_values = {}
+        file_map = {}
         for field in fields:
-            key = getattr(field, "name", None) or getattr(field, "field_name", None)
+            key = getattr(field, "field_name", None) or getattr(field, "name", None)
             if not key:
                 continue
-            field_values[key] = request.form.get(key, "")
+            # if this field is an image, expect a file input with same name
+            ftype = (getattr(field, "field_type", None) or getattr(field, "type", None) or "text").lower()
+            if ftype == "image":
+                uploaded = request.files.get(key)
+                if uploaded and uploaded.filename:
+                    if allowed_file(uploaded.filename):
+                        # save upload temporarily into GENERATED_FOLDER (or a dedicated temporary folder)
+                        save_dir = getattr(Config, "TEMP_UPLOAD_FOLDER", os.path.join(getattr(Config, "PREVIEW_FOLDER", "static/previews"), "assets"))
+                        os.makedirs(save_dir, exist_ok=True)
+                        fname = secure_filename(f"{int(datetime.utcnow().timestamp())}_{uploaded.filename}")
+                        path = os.path.join(save_dir, fname)
+                        uploaded.save(path)
+                        file_map[key] = path
+                    else:
+                        flash(f"Uploaded file for {key} not allowed type.", "danger")
+                        return redirect(url_for("fill_template", template_id=template.id))
+                else:
+                    # no upload, continue; image field optional
+                    file_map[key] = None
+            else:
+                field_values[key] = request.form.get(key, "")
 
         base_image_path = _ensure_template_image_exists_or_redirect(template)
         if not base_image_path:
             return redirect(url_for("admin_templates") if getattr(current_user, "is_admin", False) else url_for("index"))
 
-        base_image = Image.open(base_image_path).convert("RGBA")
-        draw = ImageDraw.Draw(base_image)
-
-        for field in fields:
-            key = getattr(field, "name", None) or getattr(field, "field_name", None)
-            if not key:
-                continue
-            text = field_values.get(key, "")
-            color = getattr(field, "color", None) or getattr(field, "font_color", None) or "#000000"
-            font_size = getattr(field, "font_size", None) or 24
-
-            try:
-                font = ImageFont.truetype(Config.FONT_PATH, int(font_size))
-            except Exception:
-                font = ImageFont.load_default()
-
-            text_bbox = draw.textbbox((0, 0), text, font=font)
-            text_width = text_bbox[2] - text_bbox[0]
-
-            x = getattr(field, "x", None)
-            if x is None:
-                x = getattr(field, "x_position", 0)
-            y = getattr(field, "y", None)
-            if y is None:
-                y = getattr(field, "y_position", 0)
-
-            align = getattr(field, "align", "left") or "left"
-
-            if align == "center":
-                x -= text_width // 2
-            elif align == "right":
-                x -= text_width
-
-            draw.text((x, y), text, fill=color, font=font)
+        # compose image (text + pasted user images)
+        composed = compose_image_from_fields(base_image_path, fields, values=field_values, file_map=file_map)
 
         # Save generated certificate
-        os.makedirs(Config.GENERATED_FOLDER, exist_ok=True)
+        generated_folder = getattr(Config, "GENERATED_FOLDER", "static/generated")
+        os.makedirs(generated_folder, exist_ok=True)
         filename = (
             f"certificate_{current_user.id}_{template.id}_"
             f"{int(datetime.utcnow().timestamp())}.png"
         )
-        output_path = os.path.join(Config.GENERATED_FOLDER, filename)
-        base_image.save(output_path)
+        output_path = os.path.join(generated_folder, filename)
+        composed.save(output_path)
 
         # Deduct from wallet and log transaction
-        current_user.wallet_balance -= template.price
-        transaction = Transaction(
-            user_id=current_user.id,
-            amount=template.price,
-            transaction_type="debit",
-            description=f"Certificate purchase - {template.name}",
-        )
-        db.session.add(transaction)
-        db.session.commit()
+        try:
+            current_user.wallet_balance -= (template.price or 0)
+            transaction = Transaction(
+                user_id=current_user.id,
+                amount=template.price,
+                transaction_type="debit",
+                description=f"Certificate purchase - {template.name}",
+            )
+            db.session.add(transaction)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            app.logger.exception("Failed saving transaction after generating certificate")
+            flash("Failed to record transaction. Contact support.", "danger")
+            # still return generated file (optionally) — but keep conservative and require support to fix
+            return redirect(url_for("wallet"))
 
         flash("Certificate generated successfully.", "success")
         return redirect(url_for("view_certificate", filename=filename))
 
     return render_template("fill_template.html", template=template, fields=fields)
-
-
-@app.route("/generated/<filename>")
-@login_required
-def view_certificate(filename):
-    return send_from_directory(Config.GENERATED_FOLDER, filename)
 
 
 # ---------------------------
@@ -1143,71 +1335,67 @@ def preview_template(template_id):
     fields = TemplateField.query.filter_by(template_id=template.id).all()
 
     if request.method == "POST":
-        # collect field values
+        # collect field values and any uploaded files (for image fields)
         field_values = {}
+        file_map = {}  # saved file paths keyed by field_name
+
+        # preview assets folder
+        preview_folder = getattr(Config, "PREVIEW_FOLDER", "static/previews")
+        preview_assets = os.path.join(preview_folder, "assets")
+        os.makedirs(preview_assets, exist_ok=True)
+
         for field in fields:
-            key = getattr(field, "name", None) or getattr(field, "field_name", None)
+            key = getattr(field, "field_name", None) or getattr(field, "name", None)
             if not key:
                 continue
-            field_values[key] = request.form.get(key, "")
+            ftype = (getattr(field, "field_type", None) or getattr(field, "type", None) or "text").lower()
+            if ftype == "image":
+                uploaded = request.files.get(key)
+                if uploaded and uploaded.filename:
+                    if not allowed_file(uploaded.filename):
+                        flash(f"Uploaded file for {key} not allowed type.", "danger")
+                        return redirect(url_for("preview_template", template_id=template.id))
+                    fname = secure_filename(f"{int(datetime.utcnow().timestamp())}_{uploaded.filename}")
+                    save_path = os.path.join(preview_assets, fname)
+                    uploaded.save(save_path)
+                    file_map[key] = save_path
+                else:
+                    file_map[key] = None
+            else:
+                field_values[key] = request.form.get(key, "")
 
         # open base image (defensive)
         base_image_path = _ensure_template_image_exists_or_redirect(template)
         if not base_image_path:
             return redirect(url_for("admin_templates") if getattr(current_user, "is_admin", False) else url_for("index"))
 
-        base_image = Image.open(base_image_path).convert("RGBA")
-        draw = ImageDraw.Draw(base_image)
-
-        for field in fields:
-            key = getattr(field, "name", None) or getattr(field, "field_name", None)
-            if not key:
-                continue
-            text = field_values.get(key, "")
-            color = getattr(field, "color", None) or getattr(field, "font_color", None) or "#000000"
-            font_size = getattr(field, "font_size", None) or 24
-            try:
-                font = ImageFont.truetype(Config.FONT_PATH, int(font_size))
-            except Exception:
-                font = ImageFont.load_default()
-
-            text_bbox = draw.textbbox((0, 0), text, font=font)
-            text_width = text_bbox[2] - text_bbox[0]
-
-            x = getattr(field, "x", None)
-            if x is None:
-                x = getattr(field, "x_position", 0)
-            y = getattr(field, "y", None)
-            if y is None:
-                y = getattr(field, "y_position", 0)
-
-            align = getattr(field, "align", "left") or "left"
-            if align == "center":
-                x -= text_width // 2
-            elif align == "right":
-                x -= text_width
-
-            draw.text((x, y), text, fill=color, font=font)
+        # compose preview image using saved assets
+        composed = compose_image_from_fields(base_image_path, fields, values=field_values, file_map=file_map)
 
         # Save preview
-        os.makedirs(Config.PREVIEW_FOLDER, exist_ok=True)
+        preview_folder = getattr(Config, "PREVIEW_FOLDER", "static/previews")
+        os.makedirs(preview_folder, exist_ok=True)
         preview_filename = f"preview_{current_user.id}_{template.id}_{int(datetime.utcnow().timestamp())}.png"
-        preview_path = os.path.join(Config.PREVIEW_FOLDER, preview_filename)
-        base_image.save(preview_path)
+        preview_path = os.path.join(preview_folder, preview_filename)
+        composed.save(preview_path)
 
-        # Store preview info in session so we can generate final after payment
-        session["preview_info"] = {
+        # Build preview_info to store in session: include field_values and any saved asset filenames (relative paths)
+        # We'll store absolute paths for preview assets so _generate_final_certificate_from_preview can find them.
+        preview_info = {
             "preview_filename": preview_filename,
             "field_values": field_values,
             "template_id": template.id,
+            "asset_map": file_map,  # may contain absolute paths or None
         }
+        session["preview_info"] = preview_info
 
-        # Render the preview view that shows image and payment options
+        # Optionally create a purchase order and store purchase_order_id in session if your payment flow starts here.
+        # We keep the previous behavior: the front-end will create a Razorpay order; for now just show preview + button to pay.
         return render_template(
             "preview_template.html",
             template=template,
             fields=fields,
-            preview_url=url_for("static", filename=f"previews/{preview_filename}"),
+            preview_url=url_for("view_preview", filename=preview_filename),
             preview_filename=preview_filename,
         )
 
@@ -1216,51 +1404,32 @@ def preview_template(template_id):
 
 
 def _generate_final_certificate_from_preview(user, template, preview_info):
-    field_values = preview_info.get("field_values", {})
+    """
+    Generate final certificate using preview_info stored in session.
+    preview_info must contain:
+      - 'field_values': dict of text values
+      - 'asset_map': dict mapping field_name -> absolute saved file path (if uploaded)
+    """
+    field_values = preview_info.get("field_values", {}) if isinstance(preview_info, dict) else {}
+    asset_map = preview_info.get("asset_map", {}) if isinstance(preview_info, dict) else {}
 
     base_image_path = _ensure_template_image_exists_or_redirect(template)
     if not base_image_path:
         raise RuntimeError("Template base image missing when generating final certificate.")
 
-    base_image = Image.open(base_image_path).convert("RGBA")
-    draw = ImageDraw.Draw(base_image)
-
     fields = TemplateField.query.filter_by(template_id=template.id).all()
-    for field in fields:
-        key = getattr(field, "name", None) or getattr(field, "field_name", None)
-        if not key:
-            continue
-        text = field_values.get(key, "")
-        color = getattr(field, "color", None) or getattr(field, "font_color", None) or "#000000"
-        font_size = getattr(field, "font_size", None) or 24
-        try:
-            font = ImageFont.truetype(Config.FONT_PATH, int(font_size))
-        except Exception:
-            font = ImageFont.load_default()
 
-        text_bbox = draw.textbbox((0, 0), text, font=font)
-        text_width = text_bbox[2] - text_bbox[0]
-        x = getattr(field, "x", None)
-        if x is None:
-            x = getattr(field, "x_position", 0)
-        y = getattr(field, "y", None)
-        if y is None:
-            y = getattr(field, "y_position", 0)
+    # Compose using saved asset_map and field_values
+    composed = compose_image_from_fields(base_image_path, fields, values=field_values, file_map=asset_map)
 
-        align = getattr(field, "align", "left") or "left"
-        if align == "center":
-            x -= text_width // 2
-        elif align == "right":
-            x -= text_width
-
-        draw.text((x, y), text, fill=color, font=font)
-
-    os.makedirs(Config.GENERATED_FOLDER, exist_ok=True)
+    # Save final to GENERATED_FOLDER
+    generated_folder = getattr(Config, "GENERATED_FOLDER", "static/generated")
+    os.makedirs(generated_folder, exist_ok=True)
     filename = (
         f"certificate_{user.id}_{template.id}_{int(datetime.utcnow().timestamp())}.png"
     )
-    output_path = os.path.join(Config.GENERATED_FOLDER, filename)
-    base_image.save(output_path)
+    output_path = os.path.join(generated_folder, filename)
+    composed.save(output_path)
 
     # Log transaction row (if not already logged by calling context)
     try:
@@ -1285,5 +1454,3 @@ def _generate_final_certificate_from_preview(user, template, preview_info):
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-

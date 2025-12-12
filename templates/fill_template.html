@@ -1,62 +1,54 @@
-{% extends "base.html" %}
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Fill Template - {{ template.name }}</title>
+  <style>
+    .field-row { margin-bottom: 1rem; }
+    .thumb { max-width: 160px; max-height: 100px; display:block; margin-top: .5rem; }
+  </style>
+</head>
+<body>
+  <h1>Fill: {{ template.name }}</h1>
 
-{% block title %}Fill Template - {{ template.name }}{% endblock %}
+  <!-- IMPORTANT: enctype to allow file uploads -->
+  <form method="post" enctype="multipart/form-data" id="fill-form">
+    {% for f in fields %}
+      {% set key = f.field_name if f.field_name else f.name %}
+      <div class="field-row">
+        <label><strong>{{ key }}</strong> (type: {{ f.field_type }})</label><br/>
 
-{% block content %}
-<div class="container mt-4">
-  <h2 class="mb-4">Fill Template: {{ template.name }}</h2>
-
-  <div class="row">
-    <div class="col-md-7 mb-4">
-      <div class="card">
-        <div class="card-header">
-          Template Preview
-        </div>
-        <div class="card-body text-center">
-          <img src="{{ url_for('static', filename='templates/' + template.image_path) }}"
-               class="img-fluid" alt="{{ template.name }}">
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-5 mb-4">
-      <div class="card">
-        <div class="card-header">
-          Fill Certificate Data
-        </div>
-        <div class="card-body">
-          <p class="mb-2">
-            <strong>Price:</strong> ₹ {{ "%.2f"|format(template.price or 0) }}<br>
-            <strong>Your Wallet:</strong> ₹ {{ "%.2f"|format(current_user.wallet_balance or 0) }}
-          </p>
-
-          {% if current_user.wallet_balance < template.price %}
-          <div class="alert alert-warning">
-            Your wallet balance is low. Please <a href="{{ url_for('wallet') }}">add money</a> to generate this certificate.
-          </div>
+        {% if (f.field_type or 'text').lower() == 'image' %}
+          <!-- file input for image fields -->
+          <input type="file" name="{{ key }}" accept="image/*" data-field="{{ key }}" class="image-input" />
+          <img id="preview-{{ key }}" class="thumb" src="" alt="No file chosen" style="display:none;" />
+          {% if f.width and f.height %}
+            <div style="font-size:0.9rem;color:#666">Suggested size: {{ f.width }}×{{ f.height }}</div>
           {% endif %}
-
-          <form method="POST">
-            {% for field in fields %}
-            <div class="mb-3">
-              <label class="form-label">{{ field.name }}</label>
-              <input type="text"
-                     name="{{ field.name }}"
-                     class="form-control"
-                     placeholder="Enter {{ field.name }}"
-                     required>
-            </div>
-            {% endfor %}
-
-            <button type="submit"
-                    class="btn btn-primary"
-                    {% if current_user.wallet_balance < template.price %}disabled{% endif %}>
-              Generate Certificate
-            </button>
-          </form>
-        </div>
+        {% else %}
+          <!-- text input for text fields -->
+          <input type="text" name="{{ key }}" value="" placeholder="{{ key }}" />
+        {% endif %}
       </div>
-    </div>
-  </div>
-</div>
-{% endblock %}
+    {% endfor %}
+
+    <button type="submit">Generate</button>
+  </form>
+
+  <script>
+    // Show image preview when user chooses a file
+    document.querySelectorAll('.image-input').forEach(function(inp){
+      inp.addEventListener('change', function(e){
+        const file = e.target.files && e.target.files[0];
+        const field = e.target.dataset.field;
+        const img = document.getElementById('preview-' + field);
+        if (!file) { img.style.display = 'none'; img.src = ''; return; }
+        const url = URL.createObjectURL(file);
+        img.src = url;
+        img.style.display = 'block';
+      });
+    });
+  </script>
+</body>
+</html>
+

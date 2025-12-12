@@ -1,43 +1,35 @@
 {% extends "base.html" %}
-{% block title %}Missing template images{% endblock %}
+{% block title %}Missing Template Images (Admin){% endblock %}
 
 {% block content %}
-<div class="container my-4">
-  <div class="d-flex justify-content-between mb-3">
-    <h4>Templates with missing image files</h4>
-    <a href="{{ url_for('admin_templates') }}" class="btn btn-outline-secondary btn-sm">← Back</a>
-  </div>
+<div class="container mt-4">
+  <h3>Templates with missing image files</h3>
+  <p class="text-muted">These templates point to image files that don't exist on the server. Re-upload or delete them.</p>
 
-  {% if missing and missing|length > 0 %}
-    <div class="table-responsive">
-      <table class="table table-striped align-middle">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Image path (db)</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for m in missing %}
-            <tr>
-              <td>{{ m.id }}</td>
-              <td>{{ m.name }}</td>
-              <td><code>{{ m.image_path }}</code></td>
-              <td>
-                <a href="{{ url_for('admin_edit_template', template_id=m.id) }}" class="btn btn-sm btn-warning">Edit / Re-upload</a>
-                <form method="POST" action="{{ url_for('admin_delete_template', template_id=m.id) }}" class="d-inline" onsubmit="return confirm('Delete this template record?');">
-                  <button class="btn btn-sm btn-danger">Delete</button>
-                </form>
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+  {% if missing %}
+    <table class="table table-striped">
+      <thead>
+        <tr><th>ID</th><th>Name</th><th>Image path</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for m in missing %}
+        <tr>
+          <td>{{ m.id }}</td>
+          <td>{{ m.name }}</td>
+          <td><code>{{ m.image_path }}</code></td>
+          <td>
+            <a href="{{ url_for('admin_edit_template', template_id=m.id) }}" class="btn btn-sm btn-warning">Edit</a>
+            <form method="POST" action="{{ url_for('admin_delete_template', template_id=m.id) }}" style="display:inline-block;" onsubmit="return confirm('Delete template?');">
+              <button class="btn btn-sm btn-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   {% else %}
-    <div class="alert alert-success">All template image files exist.</div>
+    <div class="alert alert-success">No missing template files found.</div>
   {% endif %}
 </div>
 {% endblock %}
+

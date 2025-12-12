@@ -1153,6 +1153,41 @@ def admin_templates_missing_files():
     return render_template("admin_missing_templates.html", missing=missing)
 
 
+from flask import Response, send_file, abort
+from io import BytesIO
+
+@app.route("/template_image/<int:template_id>")
+def serve_template_image(template_id):
+    """
+    Return the template image. Prefer filesystem file (TEMPLATE_FOLDER + image_path).
+    If missing, serve image_data (bytea) from DB. If image_url present, redirect to it.
+    """
+    template = Template.query.get(template_id)
+    if not template:
+        abort(404)
+
+    # 1) disk file (preferred)
+    if template.image_path:
+        disk_path = os.path.join(getattr(Config, "TEMPLATE_FOLDER", "static/templates"), template.image_path)
+        if os.path.exists(disk_path):
+            return send_file(disk_path)
+
+    # 2) image_data stored in DB
+    if getattr(template, "image_data", None):
+        data = template.image_data
+        mime = getattr(template, "image_mime", None) or "image/png"
+        buf = BytesIO(data)
+        return send_file(buf, mimetype=mime, as_attachment=False, download_name=template.image_path or f"template_{template.id}.png")
+
+    # 3) image_url fallback
+    if template.image_url:
+        return redirect(template.image_url)
+
+    # not found
+    abort(404)
+
+
+
 @app.route("/admin/template/<int:template_id>/restore-image", methods=["POST"])
 @login_required
 def admin_restore_template_image(template_id):
@@ -1441,4 +1476,5 @@ def _generate_final_certificate_from_preview(user, template, preview_info):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 

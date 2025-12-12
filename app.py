@@ -1,3 +1,4 @@
+# Full edited app.py
 import os
 import json
 import string
@@ -82,6 +83,12 @@ with app.app_context():
     except Exception:
         app.logger.exception("db.create_all() failed — make sure models and DB are in sync")
 
+# Make 'globals' available inside Jinja templates (fixes templates that call "globals")
+@app.context_processor
+def inject_jinja_globals():
+    return {"globals": app.jinja_env.globals}
+
+
 # --------------------------------------------------------------------------
 # Helpers
 # --------------------------------------------------------------------------
@@ -115,6 +122,7 @@ def safe_query_user_by_phone(phone_value):
     except ProgrammingError:
         # phone column may not exist in DB schema (no migration)
         app.logger.warning("Phone column missing in DB; skipping phone lookup.")
+        db.session.rollback()
         return None
     except Exception:
         app.logger.exception("Unexpected error while querying by phone.")
@@ -127,6 +135,7 @@ def safe_query_user_by_email(email_value):
         return User.query.filter_by(email=email_value).first()
     except Exception:
         app.logger.exception("Error querying user by email.")
+        db.session.rollback()
         return None
 
 
@@ -147,9 +156,11 @@ def set_field_attr_safe(field_obj, attr_name, value):
     Set attribute on a TemplateField object only if attribute exists on model.
     This lets us support different DB column naming conventions.
     """
-    # TemplateField class may have attribute as InstrumentedAttribute on class
     if hasattr(TemplateField, attr_name):
-        setattr(field_obj, attr_name, value)
+        try:
+            setattr(field_obj, attr_name, value)
+        except Exception:
+            app.logger.exception("Failed to set attribute %s on TemplateField", attr_name)
 
 
 # --------------------------------------------------------------------------
@@ -193,11 +204,10 @@ def register():
                 return redirect(url_for("login"))
 
         hashed_password = generate_password_hash(password)
-        # If model doesn't have phone column, SQLAlchemy will ignore an unknown kwarg at init? if not, set after.
+        # If model doesn't have phone column, SQLAlchemy may raise — fallback handled
         try:
             user = User(email=email or None, phone=phone or None, password=hashed_password)
         except TypeError:
-            # fallback — create without phone
             user = User(email=email or None, password=hashed_password)
             try:
                 if hasattr(User, "phone"):
@@ -217,7 +227,6 @@ def register():
                 elif rc.max_uses is not None and rc.used_count >= rc.max_uses:
                     flash("Referral code has reached maximum uses.", "warning")
                 else:
-                    # Valid referral
                     try:
                         user.referred_by = rc.owner
                         if hasattr(user, "wallet_balance"):
@@ -225,7 +234,6 @@ def register():
                     except Exception:
                         app.logger.exception("Failed to set referral on new user")
 
-                    # Create a referral redemption entry
                     try:
                         redemption = ReferralRedemption(
                             referral_code=rc,
@@ -238,7 +246,6 @@ def register():
                         rc.used_count = (rc.used_count or 0) + 1
                     except Exception:
                         app.logger.exception("Failed to create referral redemption")
-
             else:
                 flash("Invalid or inactive referral code.", "warning")
 
@@ -539,7 +546,15 @@ def admin_templates():
         flash("Access denied.", "danger")
         return redirect(url_for("index"))
 
-    templates = Template.query.order_by(Template.id.desc()).all()
+    # try a full model query, but fallback to select-only if DB missing columns
+    try:
+        templates = Template.query.order_by(Template.id.desc()).all()
+    except ProgrammingError:
+        app.logger.warning("Template full-query failed (schema mismatch). Falling back to with_entities.")
+        db.session.rollback()
+        templates = Template.query.with_entities(
+            Template.id, Template.name, Template.category, Template.price, Template.image_path
+        ).order_by(Template.id.desc()).all()
     return render_template("admin_templates.html", templates=templates)
 
 
@@ -671,6 +686,57 @@ def admin_delete_template(template_id):
     return redirect(url_for("admin_templates"))
 
 
+# Add admin referrals endpoints (so base.html links work)
+@app.route("/admin/referrals")
+@login_required
+def admin_referrals():
+    if not getattr(current_user, "is_admin", False):
+        flash("Access denied.", "danger")
+        return redirect(url_for("index"))
+
+    referral_codes = ReferralCode.query.order_by(ReferralCode.created_at.desc()).all()
+    return render_template("admin_referrals.html", referral_codes=referral_codes)
+
+
+@app.route("/admin/referrals/new", methods=["POST"])
+@login_required
+def admin_create_referral():
+    if not getattr(current_user, "is_admin", False):
+        flash("Access denied.", "danger")
+        return redirect(url_for("index"))
+
+    owner_email = request.form.get("owner_email", "").strip().lower()
+    max_uses = request.form.get("max_uses", "").strip()
+    expires_in_days = request.form.get("expires_in_days", "").strip()
+
+    owner = safe_query_user_by_email(owner_email)
+    if not owner:
+        flash("User with that email not found.", "danger")
+        return redirect(url_for("admin_referrals"))
+
+    code = generate_referral_code()
+    referral_code = ReferralCode(
+        code=code,
+        owner=owner,
+        used_count=0,
+        is_active=True,
+    )
+
+    if max_uses.isdigit():
+        referral_code.max_uses = int(max_uses)
+
+    if expires_in_days.isdigit():
+        referral_code.expires_at = datetime.utcnow() + timedelta(
+            days=int(expires_in_days)
+        )
+
+    db.session.add(referral_code)
+    db.session.commit()
+
+    flash("Referral code created successfully.", "success")
+    return redirect(url_for("admin_referrals"))
+
+
 # Compatibility adapter: older frontends post to /admin/templates/<id>/fields
 @app.route("/admin/templates/<int:template_id>/fields", methods=["POST"])
 @login_required
@@ -747,13 +813,11 @@ def admin_template_builder(template_id):
     fields = TemplateField.query.filter_by(template_id=template.id).all()
     normalized = []
     for f in fields:
-        # try a number of attribute names
         name = getattr(f, "name", None) or getattr(f, "field_name", None) or ""
         x = getattr(f, "x", None)
         if x is None:
             x = getattr(f, "x_position", 0)
         y = getattr(f, "y", None)
-    #    fallback for older names
         if y is None:
             y = getattr(f, "y_position", 0)
         font_size = getattr(f, "font_size", None) or getattr(f, "size", 24) or 24
@@ -797,8 +861,17 @@ def index():
     if not current_user.is_authenticated:
         return redirect(url_for("login"))
 
-    templates = Template.query.order_by(Template.id.desc()).all()
-    categories = sorted(set(t.category for t in templates if t.category))
+    # robust template listing (avoid hitting missing DB columns)
+    try:
+        templates = Template.query.order_by(Template.id.desc()).all()
+    except ProgrammingError:
+        app.logger.warning("Index: Template query failed, falling back to minimal select")
+        db.session.rollback()
+        templates = Template.query.with_entities(
+            Template.id, Template.name, Template.category, Template.price, Template.image_path
+        ).order_by(Template.id.desc()).all()
+
+    categories = sorted(set(getattr(t, "category", None) for t in templates if getattr(t, "category", None)))
     return render_template("index.html", templates=templates, categories=categories)
 
 
@@ -820,7 +893,6 @@ def fill_template(template_id):
             return redirect(url_for("wallet"))
 
         # Collect user-entered values
-        # handle both naming patterns
         field_values = {}
         for field in fields:
             key = getattr(field, "name", None) or getattr(field, "field_name", None)
@@ -900,7 +972,7 @@ def view_certificate(filename):
 
 
 # ---------------------------
-# Preview + Purchase flow (kept largely as your previous implementation)
+# Preview + Purchase flow
 # ---------------------------
 
 @app.route("/template/<int:template_id>/preview", methods=["GET", "POST"])

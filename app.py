@@ -1,4 +1,4 @@
-# Full edited app.py
+# Full cleaned app.py
 import os
 import json
 import string
@@ -26,7 +26,6 @@ from flask_login import (
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from PIL import Image, ImageDraw, ImageFont
-
 
 from sqlalchemy.exc import ProgrammingError, IntegrityError
 from config import Config
@@ -737,17 +736,137 @@ def admin_create_referral():
     return redirect(url_for("admin_referrals"))
 
 
-# Compatibility adapter: older frontends post to /admin/templates/<id>/fields
-@app.route("/admin/templates/<int:template_id>/fields", methods=["POST"])
-@login_required
-def admin_templates_fields_compat(template_id):
-    return admin_template_builder(template_id)
+# ---------------------------
+# Save helper
+# ---------------------------
+def save_template_fields(template, fields_list):
+    """
+    Save fields to DB for template.
+    Ensures required DB columns (field_name, x_position, y_position) are written.
+    Returns (True, {"saved": n}) or (False, {"message": ...})
+    """
+    if not isinstance(fields_list, (list, tuple)):
+        return False, {"message": "fields must be a list"}
+
+    try:
+        # Delete existing fields for this template
+        TemplateField.query.filter_by(template_id=template.id).delete()
+
+        for idx, fd in enumerate(fields_list):
+            # Normalize field dict keys (support many variants)
+            raw_name = (fd.get("field_name") or fd.get("name") or fd.get("key") or "").strip()
+            # Guarantee non-empty field_name (DB requires it)
+            field_name_val = raw_name or f"field_{idx+1}"
+
+            # X/Y numeric safe conversion (fall back to 0)
+            def to_int(v, default=0):
+                try:
+                    if v is None or v == "":
+                        return default
+                    return int(v)
+                except Exception:
+                    try:
+                        return int(float(v))
+                    except Exception:
+                        return default
+
+            x_val = to_int(fd.get("x", fd.get("x_position", fd.get("left", 0))))
+            y_val = to_int(fd.get("y", fd.get("y_position", fd.get("top", 0))))
+            font_size_val = to_int(fd.get("font_size", fd.get("size", 24)), default=24)
+
+            color_val = (fd.get("color") or fd.get("font_color") or "#000000") or "#000000"
+            align_val = (fd.get("align") or "left") or "left"
+            field_type_val = (fd.get("field_type") or fd.get("type") or "text") or "text"
+
+            # Create instance
+            obj = TemplateField()
+
+            # Attempt to set all common attribute names so DB/mapping gets data whichever schema you have
+            # template id
+            try:
+                setattr(obj, "template_id", template.id)
+            except Exception:
+                app.logger.exception("Could not set template_id on TemplateField instance")
+
+            # field name / name (DB might require field_name)
+            for col in ("field_name", "name"):
+                try:
+                    setattr(obj, col, field_name_val)
+                except Exception:
+                    pass
+
+            # x/x_position, y/y_position
+            for col in ("x", "x_position"):
+                try:
+                    setattr(obj, col, x_val)
+                except Exception:
+                    pass
+            for col in ("y", "y_position"):
+                try:
+                    setattr(obj, col, y_val)
+                except Exception:
+                    pass
+
+            # font_size/size
+            for col in ("font_size", "size"):
+                try:
+                    setattr(obj, col, font_size_val)
+                except Exception:
+                    pass
+
+            # color/font_color
+            for col in ("color", "font_color"):
+                try:
+                    setattr(obj, col, color_val)
+                except Exception:
+                    pass
+
+            # align
+            try:
+                setattr(obj, "align", align_val)
+            except Exception:
+                pass
+
+            # field_type/type
+            for col in ("field_type", "type"):
+                try:
+                    setattr(obj, col, field_type_val)
+                except Exception:
+                    pass
+
+            # Optional props: width, height, shape if provided
+            try:
+                if "width" in fd:
+                    setattr(obj, "width", to_int(fd.get("width")))
+                if "height" in fd:
+                    setattr(obj, "height", to_int(fd.get("height")))
+                if "shape" in fd:
+                    setattr(obj, "shape", fd.get("shape"))
+            except Exception:
+                pass
+
+            db.session.add(obj)
+
+        db.session.commit()
+        return True, {"saved": len(fields_list)}
+    except IntegrityError as ie:
+        db.session.rollback()
+        app.logger.exception("DB integrity error saving template fields: %s", ie)
+        # Be explicit: likely missing NOT NULL; ensure fields include field_name, x_position, y_position
+        return False, {"message": "Database integrity error (likely required column missing or null). Ensure each field has a name and coordinates."}
+    except Exception as e:
+        db.session.rollback()
+        app.logger.exception("Unexpected error saving template fields: %s", e)
+        return False, {"message": "Unknown database error while saving fields."}
 
 
-# Admin template builder (robust, accepts JSON or form encoded)
+# ---------------------------
+# Canonical admin template builder route (single definition)
+# ---------------------------
 @app.route("/admin/template/<int:template_id>/builder", methods=["GET", "POST"])
 @login_required
 def admin_template_builder(template_id):
+    # Admin-only
     if not getattr(current_user, "is_admin", False):
         flash("Access denied.", "danger")
         return redirect(url_for("index"))
@@ -755,13 +874,14 @@ def admin_template_builder(template_id):
     template = Template.query.get_or_404(template_id)
 
     if request.method == "POST":
-        # robust parsing
+        # robust payload parsing
         try:
             if request.is_json:
-                payload = request.get_json()
+                payload = request.get_json() or {}
             else:
                 fields_raw = request.form.get("fields") or request.form.get("data")
                 if fields_raw:
+                    # in case front-end posts fields=json-string
                     payload = {"fields": json.loads(fields_raw)}
                 else:
                     raw = request.get_data(as_text=True)
@@ -772,48 +892,17 @@ def admin_template_builder(template_id):
 
         fields_list = payload.get("fields", []) if isinstance(payload, dict) else []
 
-        # save fields defensively — support both naming conventions
-        try:
-            # remove old fields
-            TemplateField.query.filter_by(template_id=template.id).delete()
+        success, info = save_template_fields(template, fields_list)
+        if success:
+            return jsonify({"status": "ok", **(info or {})})
+        else:
+            return jsonify({"status": "error", "message": info.get("message", "save failed")}), 400
 
-            for fd in fields_list:
-                # read values from fd with fallback names
-                name = fd.get("name") or fd.get("field_name") or fd.get("key") or ""
-                x = fd.get("x", fd.get("x_position", fd.get("left", 0))) or 0
-                y = fd.get("y", fd.get("y_position", fd.get("top", 0))) or 0
-                font_size = fd.get("font_size", fd.get("size", 24)) or 24
-                color = fd.get("color", fd.get("font_color", "#000000")) or "#000000"
-                align = fd.get("align", "left") or "left"
-
-                # create model instance then set whichever attributes exist on model
-                obj = TemplateField()
-                set_field_attr_safe(obj, "template_id", template.id)
-                set_field_attr_safe(obj, "name", name)
-                set_field_attr_safe(obj, "field_name", name)
-                set_field_attr_safe(obj, "x", int(x))
-                set_field_attr_safe(obj, "x_position", int(x))
-                set_field_attr_safe(obj, "y", int(y))
-                set_field_attr_safe(obj, "y_position", int(y))
-                set_field_attr_safe(obj, "font_size", int(font_size))
-                set_field_attr_safe(obj, "font_color", color)
-                set_field_attr_safe(obj, "color", color)
-                set_field_attr_safe(obj, "align", align)
-
-                db.session.add(obj)
-
-            db.session.commit()
-            return jsonify({"status": "ok"})
-        except Exception:
-            db.session.rollback()
-            app.logger.exception("Failed saving template fields")
-            return jsonify({"status": "error", "message": "Database error"}), 500
-
-    # GET → render builder UI with fields normalized for JS
+    # GET: send normalized fields to template JS
     fields = TemplateField.query.filter_by(template_id=template.id).all()
     normalized = []
     for f in fields:
-        name = getattr(f, "name", None) or getattr(f, "field_name", None) or ""
+        name = getattr(f, "field_name", None) or getattr(f, "name", None) or ""
         x = getattr(f, "x", None)
         if x is None:
             x = getattr(f, "x_position", 0)
@@ -833,7 +922,42 @@ def admin_template_builder(template_id):
             "align": align,
         })
 
+    # Render the admin builder template (assumes admin_template_builder.html exists)
     return render_template("admin_template_builder.html", template=template, fields=normalized)
+
+
+# ---------------------------
+# Compatibility endpoint (older frontends)
+# ---------------------------
+@app.route("/admin/templates/<int:template_id>/fields", methods=["POST"])
+@login_required
+def admin_templates_fields_compat(template_id):
+    # Admin-only
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({"status": "error", "message": "access denied"}), 403
+
+    template = Template.query.get_or_404(template_id)
+
+    try:
+        if request.is_json:
+            payload = request.get_json() or {}
+        else:
+            fields_raw = request.form.get("fields") or request.form.get("data") or None
+            if fields_raw:
+                payload = {"fields": json.loads(fields_raw)}
+            else:
+                raw = request.get_data(as_text=True)
+                payload = json.loads(raw) if raw else {}
+    except Exception:
+        app.logger.exception("compat: failed to parse fields payload")
+        return jsonify({"status": "error", "message": "invalid JSON payload"}), 400
+
+    fields_list = payload.get("fields", []) if isinstance(payload, dict) else []
+    success, info = save_template_fields(template, fields_list)
+    if success:
+        return jsonify({"status": "ok", **(info or {})})
+    else:
+        return jsonify({"status": "error", "message": info.get("message", "save failed")}), 400
 
 
 # Admin helper: list missing template files
@@ -1118,238 +1242,10 @@ def _generate_final_certificate_from_preview(user, template, preview_info):
     return filename
 
 
-
-
-# ---------------------------
-# Robust save helper
-# ---------------------------
-def save_template_fields(template, fields_list):
-    """
-    Save fields to DB for template.
-    Ensures required DB columns (field_name, x_position, y_position) are written.
-    Returns (True, {"saved": n}) or (False, {"message": ...})
-    """
-    if not isinstance(fields_list, (list, tuple)):
-        return False, {"message": "fields must be a list"}
-
-    try:
-        # Delete existing fields for this template
-        TemplateField.query.filter_by(template_id=template.id).delete()
-
-        for idx, fd in enumerate(fields_list):
-            # Normalize field dict keys (support many variants)
-            raw_name = (fd.get("field_name") or fd.get("name") or fd.get("key") or "").strip()
-            # Guarantee non-empty field_name (DB requires it)
-            field_name_val = raw_name or f"field_{idx+1}"
-
-            # X/Y numeric safe conversion (fall back to 0)
-            def to_int(v, default=0):
-                try:
-                    if v is None or v == "":
-                        return default
-                    return int(v)
-                except Exception:
-                    try:
-                        return int(float(v))
-                    except Exception:
-                        return default
-
-            x_val = to_int(fd.get("x", fd.get("x_position", fd.get("left", 0))))
-            y_val = to_int(fd.get("y", fd.get("y_position", fd.get("top", 0))))
-            font_size_val = to_int(fd.get("font_size", fd.get("size", 24)), default=24)
-
-            color_val = (fd.get("color") or fd.get("font_color") or "#000000") or "#000000"
-            align_val = (fd.get("align") or "left") or "left"
-            field_type_val = (fd.get("field_type") or fd.get("type") or "text") or "text"
-
-            # Create instance
-            obj = TemplateField()
-
-            # Attempt to set all common attribute names so DB/mapping gets data whichever schema you have
-            # template id
-            try:
-                setattr(obj, "template_id", template.id)
-            except Exception:
-                app.logger.exception("Could not set template_id on TemplateField instance")
-
-            # field name / name (DB might require field_name)
-            for col in ("field_name", "name"):
-                try:
-                    setattr(obj, col, field_name_val)
-                except Exception:
-                    pass
-
-            # x/x_position, y/y_position
-            for col in ("x", "x_position"):
-                try:
-                    setattr(obj, col, x_val)
-                except Exception:
-                    pass
-            for col in ("y", "y_position"):
-                try:
-                    setattr(obj, col, y_val)
-                except Exception:
-                    pass
-
-            # font_size/size
-            for col in ("font_size", "size"):
-                try:
-                    setattr(obj, col, font_size_val)
-                except Exception:
-                    pass
-
-            # color/font_color
-            for col in ("color", "font_color"):
-                try:
-                    setattr(obj, col, color_val)
-                except Exception:
-                    pass
-
-            # align
-            try:
-                setattr(obj, "align", align_val)
-            except Exception:
-                pass
-
-            # field_type/type
-            for col in ("field_type", "type"):
-                try:
-                    setattr(obj, col, field_type_val)
-                except Exception:
-                    pass
-
-            # Optional props: width, height, shape if provided
-            try:
-                if "width" in fd:
-                    setattr(obj, "width", to_int(fd.get("width")))
-                if "height" in fd:
-                    setattr(obj, "height", to_int(fd.get("height")))
-                if "shape" in fd:
-                    setattr(obj, "shape", fd.get("shape"))
-            except Exception:
-                pass
-
-            db.session.add(obj)
-
-        db.session.commit()
-        return True, {"saved": len(fields_list)}
-    except IntegrityError as ie:
-        db.session.rollback()
-        app.logger.exception("DB integrity error saving template fields: %s", ie)
-        # Be explicit: likely missing NOT NULL; ensure fields include field_name, x_position, y_position
-        return False, {"message": "Database integrity error (likely required column missing or null). Ensure each field has a name and coordinates."}
-    except Exception as e:
-        db.session.rollback()
-        app.logger.exception("Unexpected error saving template fields: %s", e)
-        return False, {"message": "Unknown database error while saving fields."}
-
-
-# ---------------------------
-# Canonical admin template builder route (single definition)
-# ---------------------------
-@app.route("/admin/template/<int:template_id>/builder", methods=["GET", "POST"])
-@login_required
-def admin_template_builder(template_id):
-    # Admin-only
-    if not getattr(current_user, "is_admin", False):
-        flash("Access denied.", "danger")
-        return redirect(url_for("index"))
-
-    template = Template.query.get_or_404(template_id)
-
-    if request.method == "POST":
-        # robust payload parsing
-        try:
-            if request.is_json:
-                payload = request.get_json() or {}
-            else:
-                fields_raw = request.form.get("fields") or request.form.get("data")
-                if fields_raw:
-                    # in case front-end posts fields=json-string
-                    payload = {"fields": json.loads(fields_raw)}
-                else:
-                    raw = request.get_data(as_text=True)
-                    payload = json.loads(raw) if raw else {}
-        except Exception:
-            app.logger.exception("Builder payload parse error")
-            return jsonify({"status": "error", "message": "Invalid JSON payload"}), 400
-
-        fields_list = payload.get("fields", []) if isinstance(payload, dict) else []
-
-        success, info = save_template_fields(template, fields_list)
-        if success:
-            return jsonify({"status": "ok", **(info or {})})
-        else:
-            return jsonify({"status": "error", "message": info.get("message", "save failed")}), 400
-
-    # GET: send normalized fields to template JS
-    fields = TemplateField.query.filter_by(template_id=template.id).all()
-    normalized = []
-    for f in fields:
-        name = getattr(f, "field_name", None) or getattr(f, "name", None) or ""
-        x = getattr(f, "x", None)
-        if x is None:
-            x = getattr(f, "x_position", 0)
-        y = getattr(f, "y", None)
-        if y is None:
-            y = getattr(f, "y_position", 0)
-        font_size = getattr(f, "font_size", None) or getattr(f, "size", 24) or 24
-        color = getattr(f, "color", None) or getattr(f, "font_color", None) or "#000000"
-        align = getattr(f, "align", "left") or "left"
-
-        normalized.append({
-            "name": name,
-            "x": int(x or 0),
-            "y": int(y or 0),
-            "font_size": int(font_size or 24),
-            "color": color or "#000000",
-            "align": align,
-        })
-
-    # Render the admin builder template (assumes admin_template_builder.html exists)
-    return render_template("admin_template_builder.html", template=template, fields=normalized)
-
-
-# ---------------------------
-# Compatibility endpoint (older frontends)
-# ---------------------------
-@app.route("/admin/templates/<int:template_id>/fields", methods=["POST"])
-@login_required
-def admin_templates_fields_compat(template_id):
-    # Admin-only
-    if not getattr(current_user, "is_admin", False):
-        return jsonify({"status": "error", "message": "access denied"}), 403
-
-    template = Template.query.get_or_404(template_id)
-
-    try:
-        if request.is_json:
-            payload = request.get_json() or {}
-        else:
-            fields_raw = request.form.get("fields") or request.form.get("data") or None
-            if fields_raw:
-                payload = {"fields": json.loads(fields_raw)}
-            else:
-                raw = request.get_data(as_text=True)
-                payload = json.loads(raw) if raw else {}
-    except Exception:
-        app.logger.exception("compat: failed to parse fields payload")
-        return jsonify({"status": "error", "message": "invalid JSON payload"}), 400
-
-    fields_list = payload.get("fields", []) if isinstance(payload, dict) else []
-    success, info = save_template_fields(template, fields_list)
-    if success:
-        return jsonify({"status": "ok", **(info or {})})
-    else:
-        return jsonify({"status": "error", "message": info.get("message", "save failed")}), 400
-
 # --------------------------------------------------------------------------
 # Main
 # --------------------------------------------------------------------------
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-
-
 

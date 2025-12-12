@@ -1,4 +1,3 @@
-# models.py
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from sqlalchemy import LargeBinary
@@ -43,7 +42,7 @@ class Template(db.Model):
     # Local filesystem filename (legacy / optional)
     image_path = db.Column(db.String(500), nullable=True)
 
-    # Option A: store binary image in DB (bytea) so templates don't go missing on ephemeral storage
+    # Store binary image in DB (bytea) so templates don't go missing on ephemeral storage
     image_data = db.Column(LargeBinary, nullable=True)
     image_mime = db.Column(db.String(120), nullable=True)
 
@@ -66,12 +65,8 @@ class Template(db.Model):
 
 class TemplateField(db.Model):
     """
-    Single field on a template. This schema supports text fields and image fields.
-    We keep attribute names that match the various versions of your app code:
-      - code expects: name, x, y, font_size, color, align
-      - older uploaded model used: field_name, x_position, y_position, width, height
-    This class exposes the modern attributes and also defines legacy-named properties
-    that map to the same underlying columns for compatibility.
+    Single field on a template. Supports both text and image fields, and provides
+    legacy alias properties (field_name, x_position, y_position) for compatibility.
     """
 
     __tablename__ = "template_field"
@@ -99,6 +94,9 @@ class TemplateField(db.Model):
     height = db.Column(db.Integer, nullable=True)
     shape = db.Column(db.String(20), nullable=True)  # 'rect' or 'circle'
 
+    # Optional font family token (maps to Config.FONT_FAMILIES)
+    font_family = db.Column(db.String(80), nullable=True)
+
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 
     # --- Legacy aliases for compatibility with older schema names / templates ---
@@ -116,7 +114,10 @@ class TemplateField(db.Model):
 
     @x_position.setter
     def x_position(self, v):
-        self.x = v
+        try:
+            self.x = int(v)
+        except Exception:
+            self.x = 0
 
     @property
     def y_position(self):
@@ -124,7 +125,10 @@ class TemplateField(db.Model):
 
     @y_position.setter
     def y_position(self, v):
-        self.y = v
+        try:
+            self.y = int(v)
+        except Exception:
+            self.y = 0
 
     def __repr__(self):
         return f"<TemplateField id={self.id} name={self.name} type={self.field_type} x={self.x} y={self.y}>"

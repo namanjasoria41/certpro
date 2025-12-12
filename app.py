@@ -1,8 +1,8 @@
 import os
-import io
 import json
 import string
 import random
+from io import BytesIO
 from datetime import datetime, timedelta
 
 from flask import (
@@ -14,9 +14,10 @@ from flask import (
     flash,
     jsonify,
     send_from_directory,
-    session,
-    Response,
     send_file,
+    session,
+    abort,
+    Response,
 )
 from flask_login import (
     LoginManager,
@@ -30,6 +31,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from PIL import Image, ImageDraw, ImageFont
 
 from sqlalchemy.exc import ProgrammingError, IntegrityError
+
+# Import config and models (make sure these modules exist)
 from config import Config
 from models import (
     db,
@@ -48,8 +51,11 @@ from razorpay.errors import SignatureVerificationError
 # App / DB / Login setup
 # --------------------------------------------------------------------------
 
-app = Flask(__name__, static_folder=getattr(Config, "STATIC_FOLDER", "static"))
+app = Flask(__name__)
 app.config.from_object(Config)
+
+# Optional: limit upload size (e.g. 8MB)
+app.config.setdefault("MAX_CONTENT_LENGTH", 8 * 1024 * 1024)
 
 # Make DB connections robust
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
@@ -65,17 +71,21 @@ login_manager.login_view = "login"
 
 @login_manager.user_loader
 def load_user(user_id):
-    """Reload user object from the user ID stored in the session."""
     try:
         return User.query.get(int(user_id))
     except Exception:
         return None
 
 
-# Razorpay client (if keys missing, this will fail on calls — keep keys in Config)
+# Razorpay client
 razorpay_client = razorpay.Client(
     auth=(getattr(Config, "RAZORPAY_KEY_ID", ""), getattr(Config, "RAZORPAY_KEY_SECRET", ""))
 )
+
+# Ensure folders exist
+os.makedirs(getattr(Config, "TEMPLATE_FOLDER", "static/templates"), exist_ok=True)
+os.makedirs(getattr(Config, "PREVIEW_FOLDER", "static/previews"), exist_ok=True)
+os.makedirs(getattr(Config, "GENERATED_FOLDER", "static/generated"), exist_ok=True)
 
 # Create tables on startup (safe if models match DB)
 with app.app_context():
@@ -84,7 +94,7 @@ with app.app_context():
     except Exception:
         app.logger.exception("db.create_all() failed — make sure models and DB are in sync")
 
-# Make 'globals' available inside Jinja templates (fixes templates that call "globals")
+
 @app.context_processor
 def inject_jinja_globals():
     return {"globals": app.jinja_env.globals}
@@ -94,20 +104,14 @@ def inject_jinja_globals():
 # Helpers
 # --------------------------------------------------------------------------
 
-ALLOWED_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg"}
+ALLOWED_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
 
 
 def allowed_file(filename: str) -> bool:
-    return (
-        filename
-        and "."
-        in filename
-        and filename.rsplit(".", 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
-    )
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
 
 
 def generate_referral_code(length: int = 8) -> str:
-    """Generate a unique referral code."""
     chars = string.ascii_uppercase + string.digits
     while True:
         code = "".join(random.choice(chars) for _ in range(length))
@@ -116,14 +120,9 @@ def generate_referral_code(length: int = 8) -> str:
 
 
 def safe_query_user_by_phone(phone_value):
-    """
-    Attempt to query User by phone, but don't crash if the phone column doesn't exist.
-    Returns User or None.
-    """
     try:
         return User.query.filter_by(phone=phone_value).first()
     except ProgrammingError:
-        # phone column may not exist in DB schema (no migration)
         app.logger.warning("Phone column missing in DB; skipping phone lookup.")
         db.session.rollback()
         return None
@@ -133,7 +132,6 @@ def safe_query_user_by_phone(phone_value):
 
 
 def safe_query_user_by_email(email_value):
-    """Query user by email with minimal exception handling."""
     try:
         return User.query.filter_by(email=email_value).first()
     except Exception:
@@ -144,8 +142,7 @@ def safe_query_user_by_email(email_value):
 
 def get_font_path_for_token(token: str):
     """
-    Resolve a font token (e.g. 'roboto') to an actual TTF path using Config.FONT_FAMILIES,
-    falling back to Config.FONT_PATH or None.
+    Resolve font token to TTF path using Config.FONT_FAMILIES or Config.FONT_PATH fallback.
     """
     try:
         families = getattr(Config, "FONT_FAMILIES", None)
@@ -153,7 +150,6 @@ def get_font_path_for_token(token: str):
             path = families.get(token)
             if path and os.path.exists(path):
                 return path
-        # fallback to default
         default_fp = getattr(Config, "FONT_PATH", None)
         if default_fp and os.path.exists(default_fp):
             return default_fp
@@ -174,59 +170,135 @@ def _safe_int(v, default=0):
             return default
 
 
-def get_base_image_for_template(template):
+# Helper: open template image transparently for PIL
+def open_template_image_for_pil(template):
     """
-    Return a PIL.Image.Image for the given template.
-    Prefers template.image_data (DB) if present, otherwise tries filesystem path.
-    Returns PIL Image or None.
+    Return a PIL.Image opened for the template regardless of disk or DB storage.
+    Raises RuntimeError if image unavailable.
     """
-    try:
-        if getattr(template, "image_data", None):
-            bio = io.BytesIO(template.image_data)
-            img = Image.open(bio).convert("RGBA")
-            return img
-        # else fallback to path on disk
-        base_image_path = os.path.join(getattr(Config, "TEMPLATE_FOLDER", "static/templates"), template.image_path or "")
-        if os.path.exists(base_image_path):
-            return Image.open(base_image_path).convert("RGBA")
-        app.logger.error("Template base image not found for template id %s", template.id)
-    except Exception:
-        app.logger.exception("Failed to load base image for template %s", getattr(template, "id", None))
+    disk_path = os.path.join(getattr(Config, "TEMPLATE_FOLDER", "static/templates"), template.image_path or "")
+    # Disk file
+    if template.image_path and os.path.exists(disk_path):
+        return Image.open(disk_path).convert("RGBA")
+
+    # Binary in DB
+    if getattr(template, "image_data", None):
+        buf = BytesIO(template.image_data)
+        return Image.open(buf).convert("RGBA")
+
+    # external URL (network fetch)
+    if getattr(template, "image_url", None):
+        try:
+            import requests
+
+            resp = requests.get(template.image_url, timeout=5)
+            resp.raise_for_status()
+            return Image.open(BytesIO(resp.content)).convert("RGBA")
+        except Exception:
+            app.logger.exception("Failed to fetch template image from image_url")
+
+    raise RuntimeError("Template image not available")
+
+
+@app.route("/template_image/<int:template_id>")
+def serve_template_image(template_id):
+    """
+    Serve template image to browsers. Priority:
+      1) filesystem file
+      2) DB image_data (bytea)
+      3) redirect to image_url
+    """
+    template = Template.query.get(template_id)
+    if not template:
+        abort(404)
+
+    # 1) disk file
+    if template.image_path:
+        disk_path = os.path.join(getattr(Config, "TEMPLATE_FOLDER", "static/templates"), template.image_path)
+        if os.path.exists(disk_path):
+            return send_file(disk_path)
+
+    # 2) DB binary
+    if getattr(template, "image_data", None):
+        data = template.image_data
+        mime = getattr(template, "image_mime", None) or "image/png"
+        buf = BytesIO(data)
+        # flask.send_file supports file-like objects
+        return send_file(buf, mimetype=mime, as_attachment=False, download_name=template.image_path or f"template_{template.id}.png")
+
+    # 3) external URL
+    if template.image_url:
+        return redirect(template.image_url)
+
+    abort(404)
+
+
+def _ensure_template_image_exists_or_redirect(template):
+    """
+    Return either:
+      - absolute filesystem path (string) if present, OR
+      - a URL (string) to `/template_image/<id>` if image available only in DB,
+      - or None (and flash) if missing.
+    """
+    disk_path = os.path.join(getattr(Config, "TEMPLATE_FOLDER", "static/templates"), template.image_path or "")
+    if template.image_path and os.path.exists(disk_path):
+        return disk_path
+
+    if getattr(template, "image_data", None) or template.image_url:
+        return url_for("serve_template_image", template_id=template.id)
+
+    app.logger.error(f"Template image missing: disk({disk_path}) and no DB/image_url (template id {template.id})")
+    flash("Base template image not found on server. Please contact admin or re-upload the template.", "danger")
     return None
 
 
-# Compose a PIL image with the provided fields and form data / file mapping.
-# `fields` is an iterable of TemplateField model instances.
-# `values` is a dict of text values (key -> text).
-# `file_map` is a dict mapping field_name -> path to uploaded file (on disk) (optional).
-# Accepts base_image which may be a PIL.Image.Image (preferred)
-def compose_image_from_fields(base_image, fields, values=None, file_map=None):
+# compose image: draw texts and paste uploaded images according to fields
+def compose_image_from_fields(base_image_path_or_url, fields, values=None, file_map=None):
+    """
+    base_image_path_or_url:
+      - if startswith '/template_image/' or is URL, we need to load template image bytes from DB or external URL.
+      - if it's a filesystem path, PIL.Image.open() works.
+    fields: iterable of TemplateField instances
+    values: dict of {field_name: text}
+    file_map: dict of {field_name: absolute_saved_path} for uploaded images
+    """
     values = values or {}
     file_map = file_map or {}
 
-    # If base_image is string path, open it, else assume PIL image
-    if isinstance(base_image, str):
-        base_image = Image.open(base_image).convert("RGBA")
-    else:
-        # If it's already a PIL image, ensure RGBA
+    # detect whether base_image_path_or_url is a route (starts with /template_image/) else filesystem
+    if isinstance(base_image_path_or_url, str) and base_image_path_or_url.startswith("/template_image/"):
+        # extract id
         try:
-            if getattr(base_image, "mode", None) != "RGBA":
-                base_image = base_image.convert("RGBA")
+            tid = int(base_image_path_or_url.split("/")[-1])
+            tpl = Template.query.get(tid)
+            if not tpl:
+                raise RuntimeError("Template not found")
+            # use DB bytes if available
+            if getattr(tpl, "image_data", None):
+                base_image = Image.open(BytesIO(tpl.image_data)).convert("RGBA")
+            elif tpl.image_url:
+                import requests
+
+                resp = requests.get(tpl.image_url, timeout=5)
+                resp.raise_for_status()
+                base_image = Image.open(BytesIO(resp.content)).convert("RGBA")
+            else:
+                raise RuntimeError("No DB image or image_url available")
         except Exception:
-            base_image = Image.new("RGBA", (800, 600), (255, 255, 255, 255))
+            app.logger.exception("Failed to load template image from DB route")
+            raise
+    else:
+        # assume filesystem path
+        base_image = Image.open(base_image_path_or_url).convert("RGBA")
 
     draw = ImageDraw.Draw(base_image)
 
     for field in fields:
-        # canonical key
         key = getattr(field, "field_name", None) or getattr(field, "name", None)
         if not key:
             continue
 
-        # detect field type
-        field_type = getattr(field, "field_type", None) or getattr(field, "type", None) or "text"
-
-        # coordinates & geometry
+        ftype = (getattr(field, "field_type", None) or getattr(field, "type", None) or "text").lower()
         x = getattr(field, "x", None)
         if x is None:
             x = getattr(field, "x_position", 0) or 0
@@ -234,7 +306,6 @@ def compose_image_from_fields(base_image, fields, values=None, file_map=None):
         if y is None:
             y = getattr(field, "y_position", 0) or 0
 
-        # common props
         color = getattr(field, "color", None) or getattr(field, "font_color", None) or "#000000"
         font_size = getattr(field, "font_size", None) or getattr(field, "size", None) or 24
         align = getattr(field, "align", "left") or "left"
@@ -243,8 +314,7 @@ def compose_image_from_fields(base_image, fields, values=None, file_map=None):
         shape = getattr(field, "shape", None) or "rect"
         font_family_token = getattr(field, "font_family", None) or getattr(field, "font", None) or "default"
 
-        if (field_type or "text").lower() == "image":
-            # for image fields, look for a file in file_map
+        if ftype == "image":
             file_path = file_map.get(key)
             if not file_path or not os.path.exists(file_path):
                 app.logger.debug("No file to paste for image field %s", key)
@@ -255,15 +325,14 @@ def compose_image_from_fields(base_image, fields, values=None, file_map=None):
                 app.logger.exception("Failed to open image file for field %s", key)
                 continue
 
-            # optionally resize
-            if width and height:
-                try:
+            # resize if width/height specified
+            try:
+                if width and height:
                     user_img = user_img.resize((int(width), int(height)), Image.LANCZOS)
-                except Exception:
-                    app.logger.exception("Failed resizing uploaded image for field %s", key)
+            except Exception:
+                app.logger.exception("Failed resizing image for field %s", key)
 
             if shape == "circle":
-                # make circular alpha mask
                 w, h = user_img.size
                 size = min(w, h)
                 left = (w - size) // 2
@@ -274,23 +343,18 @@ def compose_image_from_fields(base_image, fields, values=None, file_map=None):
                 mdraw.ellipse((0, 0, user_img.size[0], user_img.size[1]), fill=255)
                 user_img.putalpha(mask)
 
-            # paste at x,y (top-left)
             try:
                 base_image.alpha_composite(user_img, dest=(int(x), int(y)))
             except Exception:
                 try:
                     base_image.paste(user_img, (int(x), int(y)), user_img)
                 except Exception:
-                    app.logger.exception("Failed to paste image for field %s", key)
-
+                    app.logger.exception("Failed to paste uploaded image for field %s", key)
         else:
-            # TEXT
             text = values.get(key, "")
             if text is None or text == "":
-                # skip empty text fields to avoid accidental blanking
-                continue
+                continue  # skip empty texts
 
-            # resolve font path
             font_path = get_font_path_for_token(font_family_token)
             try:
                 if font_path:
@@ -301,7 +365,6 @@ def compose_image_from_fields(base_image, fields, values=None, file_map=None):
                 app.logger.exception("Loading font failed for token %s", font_family_token)
                 font = ImageFont.load_default()
 
-            # compute width for alignment
             try:
                 text_bbox = draw.textbbox((0, 0), text, font=font)
                 text_width = text_bbox[2] - text_bbox[0]
@@ -323,26 +386,6 @@ def compose_image_from_fields(base_image, fields, values=None, file_map=None):
 
 
 # --------------------------------------------------------------------------
-# Routes that serve template images from DB (or fallback to disk)
-# --------------------------------------------------------------------------
-@app.route("/template-image/<int:template_id>")
-def template_image(template_id):
-    template = Template.query.get_or_404(template_id)
-
-    # If image_data stored in DB, serve it
-    if getattr(template, "image_data", None):
-        mime = template.image_mime or "image/png"
-        bio = io.BytesIO(template.image_data)
-        bio.seek(0)
-        return send_file(bio, mimetype=mime)
-    # fallback to filesystem
-    image_path = os.path.join(getattr(Config, "TEMPLATE_FOLDER", "static/templates"), template.image_path or "")
-    if os.path.exists(image_path):
-        return send_file(image_path)
-    return ("Not found", 404)
-
-
-# --------------------------------------------------------------------------
 # Auth routes (register/login/logout/forgot-password)
 # --------------------------------------------------------------------------
 
@@ -358,24 +401,18 @@ def register():
         confirm_password = request.form.get("confirm_password", "").strip()
         referral_code_input = request.form.get("referral_code", "").strip()
 
-        # At least one of email or phone is required
         if (not email and not phone) or not password:
             flash("Please provide at least an email or mobile number, and a password.", "danger")
             return redirect(url_for("register"))
-
-        # Check password confirmation
         if password != confirm_password:
             flash("Passwords do not match.", "danger")
             return redirect(url_for("register"))
 
-        # Check existing by email
         if email:
             existing_email = safe_query_user_by_email(email)
             if existing_email:
                 flash("An account with this email already exists. Please log in.", "warning")
                 return redirect(url_for("login"))
-
-        # Check existing by phone
         if phone:
             existing_phone = safe_query_user_by_phone(phone)
             if existing_phone:
@@ -383,7 +420,6 @@ def register():
                 return redirect(url_for("login"))
 
         hashed_password = generate_password_hash(password)
-        # If model doesn't have phone column, SQLAlchemy may raise — fallback handled
         try:
             user = User(email=email or None, phone=phone or None, password=hashed_password)
         except TypeError:
@@ -394,13 +430,10 @@ def register():
             except Exception:
                 pass
 
-        # Handle referral code if provided
         if referral_code_input:
             code_str = referral_code_input.strip().upper()
             rc = ReferralCode.query.filter_by(code=code_str, is_active=True).first()
-
             if rc:
-                # Check expiry
                 if rc.expires_at and rc.expires_at < datetime.utcnow():
                     flash("Referral code has expired.", "warning")
                 elif rc.max_uses is not None and rc.used_count >= rc.max_uses:
@@ -412,7 +445,6 @@ def register():
                             user.wallet_balance = (user.wallet_balance or 0.0) + getattr(Config, "REFERRAL_NEW_USER_BONUS", 0.0)
                     except Exception:
                         app.logger.exception("Failed to set referral on new user")
-
                     try:
                         redemption = ReferralRedemption(
                             referral_code=rc,
@@ -453,13 +485,9 @@ def login():
         password = request.form.get("password", "").strip()
 
         user = None
-
-        # Decide whether identifier is email or phone
         if "@" in identifier:
-            # Treat as email
             user = safe_query_user_by_email(identifier.lower())
         else:
-            # Treat as phone (safe)
             user = safe_query_user_by_phone(identifier)
 
         if user and check_password_hash(user.password, password):
@@ -468,7 +496,6 @@ def login():
             return redirect(url_for("index"))
         else:
             flash("Invalid credentials. Check your email/mobile and password.", "danger")
-
     return render_template("login.html")
 
 
@@ -490,7 +517,6 @@ def forgot_password():
         if not email or not new_password:
             flash("Email and new password are required.", "danger")
             return redirect(url_for("forgot_password"))
-
         if new_password != confirm_password:
             flash("Passwords do not match.", "danger")
             return redirect(url_for("forgot_password"))
@@ -502,11 +528,10 @@ def forgot_password():
 
         user.password = generate_password_hash(new_password)
         db.session.commit()
-
         flash("Password updated successfully. Please log in.", "success")
         return redirect(url_for("login"))
 
-    return render_template("forgot_password.html")
+    return render_template("forgot_password.html"))
 
 
 # --------------------------------------------------------------------------
@@ -533,37 +558,28 @@ def add_money():
         flash("Invalid amount.", "danger")
         return redirect(url_for("wallet"))
 
-    # Minimum 300
     if amount < 300:
         flash("Minimum wallet top-up amount is ₹300.", "danger")
         return redirect(url_for("wallet"))
 
-    amount_paise = int(amount * 100)
-
+    amount_paise = int(round(amount * 100))
     order = razorpay_client.order.create(
         {
             "amount": amount_paise,
             "currency": "INR",
             "payment_capture": "1",
-            "notes": {
-                "purpose": "wallet_topup",
-                "user_id": str(current_user.id),
-            },
+            "notes": {"purpose": "wallet_topup", "user_id": str(current_user.id)},
         }
     )
-
-    # Store in session for later verification
     session["wallet_topup_amount"] = amount
     session["wallet_order_id"] = order["id"]
 
-    # Reload transactions for the wallet page
     transactions = (
         Transaction.query.filter_by(user_id=current_user.id)
         .order_by(Transaction.timestamp.desc())
         .all()
     )
 
-    # Render wallet page with Razorpay checkout details
     return render_template(
         "wallet.html",
         transactions=transactions,
@@ -577,9 +593,6 @@ def add_money():
 @app.route("/payment/verify", methods=["POST"])
 @login_required
 def payment_verify():
-    """
-    Robust payment verify — supports both wallet and purchase flows (keeps your previous logic).
-    """
     data = request.form or request.get_json() or {}
     razorpay_order_id = data.get("razorpay_order_id")
     razorpay_payment_id = data.get("razorpay_payment_id")
@@ -594,15 +607,12 @@ def payment_verify():
         "razorpay_payment_id": razorpay_payment_id,
         "razorpay_signature": razorpay_signature,
     }
-
-    # Verify signature
     try:
         razorpay_client.utility.verify_payment_signature(params_dict)
     except SignatureVerificationError:
         flash("Payment verification failed. If money was deducted, contact support.", "danger")
         return redirect(url_for("wallet"))
 
-    # determine flow by session
     wallet_order_id = session.get("wallet_order_id")
     wallet_amount = session.get("wallet_topup_amount")
     purchase_order_id = session.get("purchase_order_id")
@@ -618,7 +628,6 @@ def payment_verify():
         flash("Payment processed but session mismatched. Contact support.", "warning")
         return redirect(url_for("wallet"))
 
-    # fetch order for amount verification
     try:
         razorpay_order = razorpay_client.order.fetch(razorpay_order_id)
         razorpay_order_amount = int(razorpay_order.get("amount", 0))
@@ -627,11 +636,9 @@ def payment_verify():
         flash("Could not verify payment with Razorpay. Contact support.", "danger")
         return redirect(url_for("wallet"))
 
-    # idempotency
     existing_tx = Transaction.query.filter_by(razorpay_payment_id=razorpay_payment_id).first()
     if existing_tx:
         flash("Payment already processed.", "info")
-        # cleanup session keys
         session.pop("wallet_order_id", None)
         session.pop("wallet_topup_amount", None)
         session.pop("purchase_order_id", None)
@@ -642,7 +649,6 @@ def payment_verify():
         if wallet_amount is None:
             flash("Session missing topup amount. Contact support.", "warning")
             return redirect(url_for("wallet"))
-
         expected_paise = int(round(wallet_amount * 100))
         if razorpay_order_amount != expected_paise:
             flash("Payment amount mismatch. Contact support.", "danger")
@@ -670,7 +676,6 @@ def payment_verify():
         flash(f"Wallet recharged with ₹{wallet_amount:.2f}", "success")
         return redirect(url_for("wallet"))
 
-    # purchase flow
     if flow == "purchase":
         if not preview_info or "template_id" not in preview_info:
             flash("Preview info missing after payment. Contact support.", "danger")
@@ -689,7 +694,6 @@ def payment_verify():
 
         try:
             filename = _generate_final_certificate_from_preview(current_user, template, preview_info)
-
             tx = Transaction(
                 user_id=current_user.id,
                 amount=template.price,
@@ -725,15 +729,12 @@ def admin_templates():
         flash("Access denied.", "danger")
         return redirect(url_for("index"))
 
-    # try a full model query, but fallback to select-only if DB missing columns
     try:
         templates = Template.query.order_by(Template.id.desc()).all()
     except ProgrammingError:
         app.logger.warning("Template full-query failed (schema mismatch). Falling back to with_entities.")
         db.session.rollback()
-        templates = Template.query.with_entities(
-            Template.id, Template.name, Template.category, Template.price, Template.image_path
-        ).order_by(Template.id.desc()).all()
+        templates = Template.query.with_entities(Template.id, Template.name, Template.category, Template.price, Template.image_path).order_by(Template.id.desc()).all()
     return render_template("admin_templates.html", templates=templates)
 
 
@@ -756,24 +757,24 @@ def admin_new_template():
         if not image_file or image_file.filename == "":
             flash("Image file is required.", "danger")
             return redirect(url_for("admin_new_template"))
-
         if not allowed_file(image_file.filename):
-            flash("Only JPG, JPEG, PNG allowed.", "danger")
+            flash("Only JPG, JPEG, PNG, GIF allowed.", "danger")
             return redirect(url_for("admin_new_template"))
 
-        # Decide: store in DB by default (safer on ephemeral hosts). Also keep image_path for compatibility.
         filename = secure_filename(image_file.filename)
-        image_bytes = image_file.read()
-        mime = image_file.mimetype or "image/png"
+        save_dir = getattr(Config, "TEMPLATE_FOLDER", "static/templates")
+        os.makedirs(save_dir, exist_ok=True)
+        save_path = os.path.join(save_dir, filename)
+        image_file.save(save_path)
 
-        template = Template(
-            name=name,
-            category=category,
-            price=price,
-            image_path=filename,  # legacy field
-            image_data=image_bytes,
-            image_mime=mime,
-        )
+        template = Template(name=name, category=category, price=price, image_path=filename)
+        # optionally store binary in DB too
+        try:
+            with open(save_path, "rb") as f:
+                template.image_data = f.read()
+                template.image_mime = "image/" + filename.rsplit(".", 1)[1].lower()
+        except Exception:
+            app.logger.exception("Failed to read saved image to store in DB")
 
         try:
             db.session.add(template)
@@ -803,11 +804,9 @@ def admin_edit_template(template_id):
         name = request.form.get("name", "").strip()
         category = request.form.get("category", "").strip()
         price_raw = request.form.get("price", "").strip()
-
         if not name or not category:
             flash("Name and category are required.", "danger")
             return redirect(url_for("admin_edit_template", template_id=template.id))
-
         try:
             price = float(price_raw or 0)
         except ValueError:
@@ -840,11 +839,8 @@ def admin_delete_template(template_id):
         return redirect(url_for("index"))
 
     template = Template.query.get_or_404(template_id)
-
-    # Delete all fields for this template
     TemplateField.query.filter_by(template_id=template.id).delete()
 
-    # If filesystem image exists (legacy), try to remove
     if template.image_path:
         image_path = os.path.join(getattr(Config, "TEMPLATE_FOLDER", "static/templates"), template.image_path)
         try:
@@ -866,7 +862,6 @@ def admin_delete_template(template_id):
     return redirect(url_for("admin_templates"))
 
 
-# Add admin referrals endpoints (so base.html links work)
 @app.route("/admin/referrals")
 @login_required
 def admin_referrals():
@@ -895,50 +890,37 @@ def admin_create_referral():
         return redirect(url_for("admin_referrals"))
 
     code = generate_referral_code()
-    referral_code = ReferralCode(
-        code=code,
-        owner=owner,
-        used_count=0,
-        is_active=True,
-    )
+    referral_code = ReferralCode(code=code, owner=owner, used_count=0, is_active=True)
 
     if max_uses.isdigit():
         referral_code.max_uses = int(max_uses)
-
     if expires_in_days.isdigit():
-        referral_code.expires_at = datetime.utcnow() + timedelta(
-            days=int(expires_in_days)
-        )
+        referral_code.expires_at = datetime.utcnow() + timedelta(days=int(expires_in_days))
 
     db.session.add(referral_code)
     db.session.commit()
-
     flash("Referral code created successfully.", "success")
     return redirect(url_for("admin_referrals"))
 
 
 # ---------------------------
-# Save helper
+# Save helper for template fields
 # ---------------------------
 def save_template_fields(template, fields_list):
     """
-    Save fields to DB for template.
-    Ensures required DB columns (name, x, y) are written.
+    Save fields to DB for template. Ensures required columns get values.
     Returns (True, {"saved": n}) or (False, {"message": ...})
     """
     if not isinstance(fields_list, (list, tuple)):
         return False, {"message": "fields must be a list"}
 
     try:
-        # Delete existing fields for this template
         TemplateField.query.filter_by(template_id=template.id).delete()
         db.session.flush()
 
         for idx, fd in enumerate(fields_list):
-            # Normalize field dict keys (support many variants)
             raw_name = (fd.get("field_name") or fd.get("name") or fd.get("key") or "").strip()
-            # Guarantee non-empty name
-            name_val = raw_name or f"field_{idx+1}"
+            field_name_val = raw_name or f"field_{idx+1}"
 
             x_val = _safe_int(fd.get("x", fd.get("x_position", fd.get("left", 0))))
             y_val = _safe_int(fd.get("y", fd.get("y_position", fd.get("top", 0))))
@@ -953,23 +935,43 @@ def save_template_fields(template, fields_list):
             shape_val = fd.get("shape")
 
             obj = TemplateField()
-
-            # canonical assignments with fallbacks
             try:
                 obj.template_id = template.id
             except Exception:
                 app.logger.exception("Could not set template_id on TemplateField instance")
 
+            # set both canonical and legacy names
             try:
-                obj.name = name_val
+                obj.field_name = field_name_val
+            except Exception:
+                try:
+                    obj.name = field_name_val
+                except Exception:
+                    pass
+            try:
+                obj.name = field_name_val
             except Exception:
                 pass
 
+            try:
+                obj.x_position = x_val
+            except Exception:
+                try:
+                    obj.x = x_val
+                except Exception:
+                    pass
             try:
                 obj.x = x_val
             except Exception:
                 pass
 
+            try:
+                obj.y_position = y_val
+            except Exception:
+                try:
+                    obj.y = y_val
+                except Exception:
+                    pass
             try:
                 obj.y = y_val
             except Exception:
@@ -978,12 +980,18 @@ def save_template_fields(template, fields_list):
             try:
                 obj.font_size = font_size_val
             except Exception:
-                pass
+                try:
+                    obj.size = font_size_val
+                except Exception:
+                    pass
 
             try:
                 obj.color = color_val
             except Exception:
-                pass
+                try:
+                    obj.font_color = color_val
+                except Exception:
+                    pass
 
             try:
                 obj.align = align_val
@@ -993,12 +1001,18 @@ def save_template_fields(template, fields_list):
             try:
                 obj.field_type = field_type_val
             except Exception:
-                pass
+                try:
+                    obj.type = field_type_val
+                except Exception:
+                    pass
 
             try:
                 obj.font_family = font_family_val
             except Exception:
-                pass
+                try:
+                    obj.font = font_family_val
+                except Exception:
+                    pass
 
             try:
                 if width_val is not None and width_val != "":
@@ -1009,6 +1023,13 @@ def save_template_fields(template, fields_list):
                     obj.shape = shape_val
             except Exception:
                 pass
+
+            app.logger.debug("Saving TemplateField: template_id=%s field_name=%s x_pos=%s y_pos=%s type=%s",
+                             getattr(obj, "template_id", None),
+                             getattr(obj, "field_name", getattr(obj, "name", None)),
+                             getattr(obj, "x_position", getattr(obj, "x", None)),
+                             getattr(obj, "y_position", getattr(obj, "y", None)),
+                             getattr(obj, "field_type", None))
 
             db.session.add(obj)
 
@@ -1025,12 +1046,42 @@ def save_template_fields(template, fields_list):
 
 
 # ---------------------------
-# Canonical admin template builder route (single definition)
+# Admin builder routes
 # ---------------------------
+
+# compatibility endpoint (older frontends)
+@app.route("/admin/templates/<int:template_id>/fields", methods=["POST"])
+@login_required
+def admin_templates_fields_compat(template_id):
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({"status": "error", "message": "access denied"}), 403
+
+    template = Template.query.get_or_404(template_id)
+    try:
+        if request.is_json:
+            payload = request.get_json() or {}
+        else:
+            fields_raw = request.form.get("fields") or request.form.get("data") or None
+            if fields_raw:
+                payload = {"fields": json.loads(fields_raw)}
+            else:
+                raw = request.get_data(as_text=True)
+                payload = json.loads(raw) if raw else {}
+    except Exception:
+        app.logger.exception("compat: failed to parse fields payload")
+        return jsonify({"status": "error", "message": "invalid JSON payload"}), 400
+
+    fields_list = payload.get("fields", []) if isinstance(payload, dict) else []
+    success, info = save_template_fields(template, fields_list)
+    if success:
+        return jsonify({"status": "ok", **(info or {})})
+    else:
+        return jsonify({"status": "error", "message": info.get("message", "save failed")}), 400
+
+
 @app.route("/admin/template/<int:template_id>/builder", methods=["GET", "POST"])
 @login_required
 def admin_template_builder(template_id):
-    # Admin-only
     if not getattr(current_user, "is_admin", False):
         flash("Access denied.", "danger")
         return redirect(url_for("index"))
@@ -1038,7 +1089,6 @@ def admin_template_builder(template_id):
     template = Template.query.get_or_404(template_id)
 
     if request.method == "POST":
-        # robust payload parsing
         try:
             if request.is_json:
                 payload = request.get_json() or {}
@@ -1054,14 +1104,13 @@ def admin_template_builder(template_id):
             return jsonify({"status": "error", "message": "Invalid JSON payload"}), 400
 
         fields_list = payload.get("fields", []) if isinstance(payload, dict) else []
-
         success, info = save_template_fields(template, fields_list)
         if success:
             return jsonify({"status": "ok", **(info or {})})
         else:
             return jsonify({"status": "error", "message": info.get("message", "save failed")}), 400
 
-    # GET: send normalized fields to template JS
+    # GET: normalized fields for the JS builder
     fields = TemplateField.query.filter_by(template_id=template.id).all()
     normalized = []
     for f in fields:
@@ -1096,45 +1145,12 @@ def admin_template_builder(template_id):
             "shape": shape,
         })
 
-    # Render the admin builder template (assumes admin_template_builder.html exists)
-    return render_template("admin_template_builder.html", template=template, fields=normalized)
+    # Render builder template
+    # Use the serve_template_image route for the <img> tag
+    template_image_url = url_for("serve_template_image", template_id=template.id)
+    return render_template("admin_template_builder.html", template=template, fields=normalized, template_image_url=template_image_url)
 
 
-# ---------------------------
-# Compatibility endpoint (older frontends)
-# ---------------------------
-@app.route("/admin/templates/<int:template_id>/fields", methods=["POST"])
-@login_required
-def admin_templates_fields_compat(template_id):
-    # Admin-only
-    if not getattr(current_user, "is_admin", False):
-        return jsonify({"status": "error", "message": "access denied"}), 403
-
-    template = Template.query.get_or_404(template_id)
-
-    try:
-        if request.is_json:
-            payload = request.get_json() or {}
-        else:
-            fields_raw = request.form.get("fields") or request.form.get("data") or None
-            if fields_raw:
-                payload = {"fields": json.loads(fields_raw)}
-            else:
-                raw = request.get_data(as_text=True)
-                payload = json.loads(raw) if raw else {}
-    except Exception:
-        app.logger.exception("compat: failed to parse fields payload")
-        return jsonify({"status": "error", "message": "invalid JSON payload"}), 400
-
-    fields_list = payload.get("fields", []) if isinstance(payload, dict) else []
-    success, info = save_template_fields(template, fields_list)
-    if success:
-        return jsonify({"status": "ok", **(info or {})})
-    else:
-        return jsonify({"status": "error", "message": info.get("message", "save failed")}), 400
-
-
-# Admin helper: list missing template files
 @app.route("/admin/templates/missing-files")
 @login_required
 def admin_templates_missing_files():
@@ -1144,48 +1160,10 @@ def admin_templates_missing_files():
 
     missing = []
     for t in Template.query.all():
-        # if DB has image_data it's fine; otherwise check filesystem
-        if getattr(t, "image_data", None):
-            continue
         path = os.path.join(getattr(Config, "TEMPLATE_FOLDER", "static/templates"), t.image_path or "")
         if not os.path.exists(path):
             missing.append({"id": t.id, "name": t.name, "image_path": t.image_path})
     return render_template("admin_missing_templates.html", missing=missing)
-
-
-from flask import Response, send_file, abort
-from io import BytesIO
-
-@app.route("/template_image/<int:template_id>")
-def serve_template_image(template_id):
-    """
-    Return the template image. Prefer filesystem file (TEMPLATE_FOLDER + image_path).
-    If missing, serve image_data (bytea) from DB. If image_url present, redirect to it.
-    """
-    template = Template.query.get(template_id)
-    if not template:
-        abort(404)
-
-    # 1) disk file (preferred)
-    if template.image_path:
-        disk_path = os.path.join(getattr(Config, "TEMPLATE_FOLDER", "static/templates"), template.image_path)
-        if os.path.exists(disk_path):
-            return send_file(disk_path)
-
-    # 2) image_data stored in DB
-    if getattr(template, "image_data", None):
-        data = template.image_data
-        mime = getattr(template, "image_mime", None) or "image/png"
-        buf = BytesIO(data)
-        return send_file(buf, mimetype=mime, as_attachment=False, download_name=template.image_path or f"template_{template.id}.png")
-
-    # 3) image_url fallback
-    if template.image_url:
-        return redirect(template.image_url)
-
-    # not found
-    abort(404)
-
 
 
 @app.route("/admin/template/<int:template_id>/restore-image", methods=["POST"])
@@ -1200,24 +1178,20 @@ def admin_restore_template_image(template_id):
         flash("No file uploaded", "danger")
         return redirect(url_for("admin_templates_missing_files"))
     if not allowed_file(image_file.filename):
-        flash("Only JPG/PNG allowed", "danger")
+        flash("Only JPG/PNG/GIF allowed", "danger")
         return redirect(url_for("admin_templates_missing_files"))
     filename = secure_filename(image_file.filename)
-    # save both to DB and optional filesystem path
-    image_bytes = image_file.read()
-    mime = image_file.mimetype or "image/png"
-    template.image_data = image_bytes
-    template.image_mime = mime
-    template.image_path = filename
     save_dir = getattr(Config, "TEMPLATE_FOLDER", "static/templates")
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, filename)
+    image_file.save(save_path)
+    template.image_path = filename
     try:
-        # write file to disk for convenience
-        with open(save_path, "wb") as f:
-            f.write(image_bytes)
+        with open(save_path, "rb") as f:
+            template.image_data = f.read()
+            template.image_mime = "image/" + filename.rsplit(".", 1)[1].lower()
     except Exception:
-        app.logger.exception("Failed to write restored file to disk")
+        app.logger.exception("Failed reading saved file into image_data")
     db.session.commit()
     flash("Template image restored.", "success")
     return redirect(url_for("admin_templates_missing_files"))
@@ -1232,15 +1206,12 @@ def index():
     if not current_user.is_authenticated:
         return redirect(url_for("login"))
 
-    # robust template listing (avoid hitting missing DB columns)
     try:
         templates = Template.query.order_by(Template.id.desc()).all()
     except ProgrammingError:
         app.logger.warning("Index: Template query failed, falling back to minimal select")
         db.session.rollback()
-        templates = Template.query.with_entities(
-            Template.id, Template.name, Template.category, Template.price, Template.image_path
-        ).order_by(Template.id.desc()).all()
+        templates = Template.query.with_entities(Template.id, Template.name, Template.category, Template.price, Template.image_path).order_by(Template.id.desc()).all()
 
     categories = sorted(set(getattr(t, "category", None) for t in templates if getattr(t, "category", None)))
     return render_template("index.html", templates=templates, categories=categories)
@@ -1252,7 +1223,6 @@ def category(category_name):
     return render_template("category.html", templates=templates, category=category_name)
 
 
-# Serve generated certificates
 @app.route("/generated/<filename>")
 @login_required
 def view_certificate(filename):
@@ -1260,7 +1230,6 @@ def view_certificate(filename):
     return send_from_directory(generated_folder, filename)
 
 
-# Serve preview images (preview flow saves preview images in PREVIEW_FOLDER)
 @app.route("/preview/<filename>")
 @login_required
 def view_preview(filename):
@@ -1279,20 +1248,17 @@ def fill_template(template_id):
             flash("Insufficient wallet balance. Please add money first.", "danger")
             return redirect(url_for("wallet"))
 
-        # Collect user-entered text values and prepare file_map for any image fields
         field_values = {}
         file_map = {}
         for field in fields:
             key = getattr(field, "field_name", None) or getattr(field, "name", None)
             if not key:
                 continue
-            # if this field is an image, expect a file input with same name
             ftype = (getattr(field, "field_type", None) or getattr(field, "type", None) or "text").lower()
             if ftype == "image":
                 uploaded = request.files.get(key)
                 if uploaded and uploaded.filename:
                     if allowed_file(uploaded.filename):
-                        # save upload temporarily into PREVIEW_FOLDER/assets
                         save_dir = getattr(Config, "TEMP_UPLOAD_FOLDER", os.path.join(getattr(Config, "PREVIEW_FOLDER", "static/previews"), "assets"))
                         os.makedirs(save_dir, exist_ok=True)
                         fname = secure_filename(f"{int(datetime.utcnow().timestamp())}_{uploaded.filename}")
@@ -1303,30 +1269,27 @@ def fill_template(template_id):
                         flash(f"Uploaded file for {key} not allowed type.", "danger")
                         return redirect(url_for("fill_template", template_id=template.id))
                 else:
-                    # no upload, continue; image field optional
                     file_map[key] = None
             else:
                 field_values[key] = request.form.get(key, "")
 
-        base_image = get_base_image_for_template(template)
-        if base_image is None:
-            flash("Base template image missing (server). Contact admin.", "danger")
-            return redirect(url_for("index"))
+        base_image_src = _ensure_template_image_exists_or_redirect(template)
+        if not base_image_src:
+            return redirect(url_for("admin_templates") if getattr(current_user, "is_admin", False) else url_for("index"))
 
-        # compose image (text + pasted user images)
-        composed = compose_image_from_fields(base_image, fields, values=field_values, file_map=file_map)
+        try:
+            composed = compose_image_from_fields(base_image_src, fields, values=field_values, file_map=file_map)
+        except Exception:
+            app.logger.exception("Failed to compose image")
+            flash("Failed to generate certificate image.", "danger")
+            return redirect(url_for("fill_template", template_id=template.id))
 
-        # Save generated certificate
         generated_folder = getattr(Config, "GENERATED_FOLDER", "static/generated")
         os.makedirs(generated_folder, exist_ok=True)
-        filename = (
-            f"certificate_{current_user.id}_{template.id}_"
-            f"{int(datetime.utcnow().timestamp())}.png"
-        )
+        filename = f"certificate_{current_user.id}_{template.id}_{int(datetime.utcnow().timestamp())}.png"
         output_path = os.path.join(generated_folder, filename)
         composed.save(output_path)
 
-        # Deduct from wallet and log transaction
         try:
             current_user.wallet_balance -= (template.price or 0)
             transaction = Transaction(
@@ -1360,11 +1323,8 @@ def preview_template(template_id):
     fields = TemplateField.query.filter_by(template_id=template.id).all()
 
     if request.method == "POST":
-        # collect field values and any uploaded files (for image fields)
         field_values = {}
-        file_map = {}  # saved file paths keyed by field_name
-
-        # preview assets folder
+        file_map = {}
         preview_folder = getattr(Config, "PREVIEW_FOLDER", "static/previews")
         preview_assets = os.path.join(preview_folder, "assets")
         os.makedirs(preview_assets, exist_ok=True)
@@ -1389,27 +1349,27 @@ def preview_template(template_id):
             else:
                 field_values[key] = request.form.get(key, "")
 
-        base_image = get_base_image_for_template(template)
-        if base_image is None:
-            flash("Base template image missing (server). Contact admin.", "danger")
-            return redirect(url_for("index"))
+        base_image_src = _ensure_template_image_exists_or_redirect(template)
+        if not base_image_src:
+            return redirect(url_for("admin_templates") if getattr(current_user, "is_admin", False) else url_for("index"))
 
-        # compose preview image using saved assets
-        composed = compose_image_from_fields(base_image, fields, values=field_values, file_map=file_map)
+        try:
+            composed = compose_image_from_fields(base_image_src, fields, values=field_values, file_map=file_map)
+        except Exception:
+            app.logger.exception("Failed to compose preview image")
+            flash("Failed to create preview image.", "danger")
+            return redirect(url_for("preview_template", template_id=template.id))
 
-        # Save preview
-        preview_folder = getattr(Config, "PREVIEW_FOLDER", "static/previews")
         os.makedirs(preview_folder, exist_ok=True)
         preview_filename = f"preview_{current_user.id}_{template.id}_{int(datetime.utcnow().timestamp())}.png"
         preview_path = os.path.join(preview_folder, preview_filename)
         composed.save(preview_path)
 
-        # Build preview_info to store in session: include field_values and any saved asset filenames (absolute paths)
         preview_info = {
             "preview_filename": preview_filename,
             "field_values": field_values,
             "template_id": template.id,
-            "asset_map": file_map,  # may contain absolute paths or None
+            "asset_map": file_map,
         }
         session["preview_info"] = preview_info
 
@@ -1421,39 +1381,26 @@ def preview_template(template_id):
             preview_filename=preview_filename,
         )
 
-    # GET -> show form
     return render_template("preview_template.html", template=template, fields=fields)
 
 
 def _generate_final_certificate_from_preview(user, template, preview_info):
-    """
-    Generate final certificate using preview_info stored in session.
-    preview_info must contain:
-      - 'field_values': dict of text values
-      - 'asset_map': dict mapping field_name -> absolute saved file path (if uploaded)
-    """
     field_values = preview_info.get("field_values", {}) if isinstance(preview_info, dict) else {}
     asset_map = preview_info.get("asset_map", {}) if isinstance(preview_info, dict) else {}
 
-    base_image = get_base_image_for_template(template)
-    if not base_image:
+    base_image_src = _ensure_template_image_exists_or_redirect(template)
+    if not base_image_src:
         raise RuntimeError("Template base image missing when generating final certificate.")
 
     fields = TemplateField.query.filter_by(template_id=template.id).all()
+    composed = compose_image_from_fields(base_image_src, fields, values=field_values, file_map=asset_map)
 
-    # Compose using saved asset_map and field_values
-    composed = compose_image_from_fields(base_image, fields, values=field_values, file_map=asset_map)
-
-    # Save final to GENERATED_FOLDER
     generated_folder = getattr(Config, "GENERATED_FOLDER", "static/generated")
     os.makedirs(generated_folder, exist_ok=True)
-    filename = (
-        f"certificate_{user.id}_{template.id}_{int(datetime.utcnow().timestamp())}.png"
-    )
+    filename = f"certificate_{user.id}_{template.id}_{int(datetime.utcnow().timestamp())}.png"
     output_path = os.path.join(generated_folder, filename)
     composed.save(output_path)
 
-    # Log transaction row (if not already logged by calling context)
     try:
         transaction = Transaction(
             user_id=user.id,
@@ -1476,5 +1423,4 @@ def _generate_final_certificate_from_preview(user, template, preview_info):
 
 if __name__ == "__main__":
     app.run(debug=True)
-
 

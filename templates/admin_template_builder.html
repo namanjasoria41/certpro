@@ -12,16 +12,15 @@
     <div class="col-lg-7 mb-4">
       <div class="card">
         <div class="card-body">
-          <p class="small text-muted">Click anywhere on the image to get coordinates placed into the "New field" X/Y inputs.</p>
+          <p class="small text-muted">Click anywhere on the image to get coordinates (natural pixels). Use "Field type" to create text or image placeholders.</p>
 
-          <div id="imgWrap" class="text-center border rounded" style="position:relative; overflow:hidden;">
+          <div id="imageContainer" class="text-center border rounded position-relative" style="overflow:hidden;">
             {% if template.image_path %}
               <img id="templateImage"
                    src="{{ url_for('static', filename='templates/' + template.image_path) }}"
                    alt="{{ template.name }}"
                    class="img-fluid"
-                   style="max-height:700px; cursor:crosshair;"
-                   />
+                   style="max-height:700px; cursor:crosshair; display:block; margin:0 auto;" />
             {% else %}
               <div class="p-5 text-muted">No image assigned to this template.</div>
             {% endif %}
@@ -35,10 +34,8 @@
     <div class="col-lg-5">
       <div class="card mb-3">
         <div class="card-body">
-          <h5 class="card-title">Fields (visual text placeholders)</h5>
-          <div id="fieldsList" class="mb-3">
-            <!-- JS populates existing fields -->
-          </div>
+          <h5 class="card-title">Fields (visual placeholders)</h5>
+          <div id="fieldsList" class="mb-3"></div>
 
           <hr />
 
@@ -47,39 +44,85 @@
             <input type="hidden" id="editIndex" value="-1" />
 
             <div class="mb-2">
-              <label class="form-label">Field name (key)</label>
+              <label class="form-label">Field key (field_name)</label>
               <input id="fieldName" class="form-control" placeholder="e.g. student_name" />
             </div>
 
             <div class="row g-2 mb-2">
               <div class="col-6">
-                <label class="form-label">X</label>
+                <label class="form-label">X (natural px)</label>
                 <input id="fieldX" class="form-control" type="number" />
               </div>
               <div class="col-6">
-                <label class="form-label">Y</label>
+                <label class="form-label">Y (natural px)</label>
                 <input id="fieldY" class="form-control" type="number" />
               </div>
             </div>
 
-            <div class="row g-2 mb-2">
-              <div class="col-6">
-                <label class="form-label">Font size</label>
-                <input id="fieldFont" class="form-control" type="number" value="24" />
+            <div class="mb-2">
+              <label class="form-label">Field type</label>
+              <select id="fieldType" class="form-select">
+                <option value="text">Text</option>
+                <option value="image">Image</option>
+              </select>
+            </div>
+
+            <div id="textOptions">
+              <div class="row g-2 mb-2">
+                <div class="col-6">
+                  <label class="form-label">Font family</label>
+                  <select id="fieldFontFamily" class="form-select">
+                    <!-- these are labels; backend must map to font file paths -->
+                    <option value="default">Default</option>
+                    <option value="inter">Inter</option>
+                    <option value="roboto">Roboto</option>
+                    <option value="open_sans">Open Sans</option>
+                    <option value="noto_sans">Noto Sans</option>
+                    <option value="times">Times New Roman</option>
+                    <option value="arial">Arial</option>
+                  </select>
+                </div>
+                <div class="col-6">
+                  <label class="form-label">Font size</label>
+                  <input id="fieldFont" class="form-control" type="number" value="24" />
+                </div>
               </div>
-              <div class="col-6">
-                <label class="form-label">Align</label>
-                <select id="fieldAlign" class="form-select">
-                  <option value="left">left</option>
-                  <option value="center">center</option>
-                  <option value="right">right</option>
-                </select>
+
+              <div class="row g-2 mb-2">
+                <div class="col-6">
+                  <label class="form-label">Align</label>
+                  <select id="fieldAlign" class="form-select">
+                    <option value="left">left</option>
+                    <option value="center">center</option>
+                    <option value="right">right</option>
+                  </select>
+                </div>
+                <div class="col-6">
+                  <label class="form-label">Color (hex)</label>
+                  <input id="fieldColor" class="form-control" placeholder="#000000" />
+                </div>
               </div>
             </div>
 
-            <div class="mb-2">
-              <label class="form-label">Color (hex)</label>
-              <input id="fieldColor" class="form-control" placeholder="#000000" />
+            <div id="imageOptions" style="display:none;">
+              <div class="row g-2 mb-2">
+                <div class="col-6">
+                  <label class="form-label">Width (px)</label>
+                  <input id="fieldWidth" class="form-control" type="number" placeholder="optional" />
+                </div>
+                <div class="col-6">
+                  <label class="form-label">Height (px)</label>
+                  <input id="fieldHeight" class="form-control" type="number" placeholder="optional" />
+                </div>
+              </div>
+
+              <div class="mb-2">
+                <label class="form-label">Shape</label>
+                <select id="fieldShape" class="form-select">
+                  <option value="rect">rect</option>
+                  <option value="circle">circle</option>
+                </select>
+              </div>
             </div>
 
             <div class="d-flex gap-2">
@@ -109,161 +152,270 @@
   </div>
 </div>
 
+<style>
+  /* small overlay style */
+  #imageContainer { position: relative; }
+  #builderOverlays { position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; z-index:500; }
+  .builder-badge { position:absolute; transform:translate(-50%,-50%); background:rgba(0,0,0,0.55); color:white; padding:2px 6px; border-radius:6px; font-size:12px; pointer-events:none; }
+</style>
+
 <script>
-const existingFields = {{ fields | tojson | safe }};
 const templateId = {{ template.id }};
-
-function showAlert(msg, type = 'info') {
-  const el = document.getElementById('alertPlaceholder');
-  el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
-  setTimeout(()=> el.innerHTML = '', 3500);
-}
-
-// fields working array
-let fields = existingFields.map(f => ({...f}));
-
-// render fields list
-function refreshFieldsList(){
-  const list = document.getElementById('fieldsList');
-  list.innerHTML = '';
-  fields.forEach((f,i) => {
-    const d = document.createElement('div');
-    d.className = 'd-flex justify-content-between align-items-center mb-1';
-    d.innerHTML = `<div><strong>${f.name}</strong> <span class="text-muted small">(${f.x},${f.y})</span></div>
-                   <div>
-                     <button class="btn btn-sm btn-outline-primary me-1" onclick="editField(${i})">Edit</button>
-                     <button class="btn btn-sm btn-outline-danger" onclick="deleteField(${i})">Del</button>
-                   </div>`;
-    list.appendChild(d);
-  });
-}
-refreshFieldsList();
+let existingFields = ({{ fields|tojson }} || []).map(f => ({
+  name: f.name || f.field_name || f.key || '',
+  field_name: f.name || f.field_name || f.key || '',
+  x: f.x || f.x_position || 0,
+  y: f.y || f.y_position || 0,
+  font_size: f.font_size || f.size || 24,
+  color: f.color || f.font_color || '#000000',
+  align: f.align || 'left',
+  field_type: f.field_type || 'text',
+  font_family: f.font_family || f.font || 'default',
+  width: f.width || null,
+  height: f.height || null,
+  shape: f.shape || 'rect'
+}));
 
 const img = document.getElementById('templateImage');
-if (img) {
-  img.addEventListener('click', function(evt){
-    const rect = img.getBoundingClientRect();
-    const x = Math.round(evt.clientX - rect.left);
-    const y = Math.round(evt.clientY - rect.top);
-    document.getElementById('fieldX').value = x;
-    document.getElementById('fieldY').value = y;
-    document.getElementById('clickCoords').innerText = `Clicked at: ${x}, ${y}`;
+let imgNaturalW = 0, imgNaturalH = 0;
+
+function initBuilder() {
+  const imgEl = img;
+  if (!imgEl) return;
+  if (imgEl.complete) onImageLoaded();
+  imgEl.addEventListener('load', onImageLoaded);
+  imgEl.addEventListener('click', onImageClick);
+
+  document.getElementById('fieldType').addEventListener('change', onFieldTypeChange);
+  document.getElementById('clearBtn').addEventListener('click', clearForm);
+  document.getElementById('addUpdateBtn').addEventListener('click', handleAddUpdate);
+
+  renderFieldsList();
+  renderOverlays();
+}
+
+function onImageLoaded() {
+  imgNaturalW = img.naturalWidth || img.width;
+  imgNaturalH = img.naturalHeight || img.height;
+  renderOverlays();
+}
+
+function onFieldTypeChange() {
+  const type = document.getElementById('fieldType').value;
+  document.getElementById('textOptions').style.display = (type === 'text' ? '' : 'none');
+  document.getElementById('imageOptions').style.display = (type === 'image' ? '' : 'none');
+}
+
+function onImageClick(ev) {
+  const rect = img.getBoundingClientRect();
+  const clickX = ev.clientX - rect.left;
+  const clickY = ev.clientY - rect.top;
+  const displayedW = rect.width;
+  const displayedH = rect.height;
+
+  const scaleX = (imgNaturalW || displayedW) / displayedW;
+  const scaleY = (imgNaturalH || displayedH) / displayedH;
+  const naturalX = Math.round(clickX * scaleX);
+  const naturalY = Math.round(clickY * scaleY);
+
+  document.getElementById('fieldX').value = naturalX;
+  document.getElementById('fieldY').value = naturalY;
+  document.getElementById('clickCoords').textContent = `Clicked (natural): ${naturalX}, ${naturalY}`;
+
+  // small marker at display coords
+  addOverlayMarker(clickX, clickY);
+  document.getElementById('fieldName').focus();
+}
+
+function addOverlayMarker(displayedX, displayedY) {
+  const existing = document.getElementById('builderMarker');
+  if (existing) existing.remove();
+
+  const marker = document.createElement('div');
+  marker.id = 'builderMarker';
+  marker.style.position = 'absolute';
+  marker.style.left = `${displayedX}px`;
+  marker.style.top = `${displayedY}px`;
+  marker.style.width = '12px';
+  marker.style.height = '12px';
+  marker.style.borderRadius = '50%';
+  marker.style.background = 'rgba(255,0,0,0.85)';
+  marker.style.transform = 'translate(-50%,-50%)';
+  marker.style.zIndex = 999;
+  marker.style.pointerEvents = 'none';
+  img.parentElement.appendChild(marker);
+
+  setTimeout(()=>{ try{ marker.remove(); }catch(e){} }, 1800);
+}
+
+function renderFieldsList() {
+  const list = document.getElementById('fieldsList');
+  list.innerHTML = '';
+  existingFields.forEach((f, i) =>{
+    const el = document.createElement('div');
+    el.className = 'd-flex justify-content-between align-items-center mb-1';
+    el.innerHTML = `<small>${i+1}. <strong>${escapeHtml(f.field_name)}</strong> — (${f.x}, ${f.y}) ${f.field_type === 'text' ? 'text' : 'image'}</small>
+      <div>
+        <button class="btn btn-sm btn-outline-secondary me-1" onclick="editField(${i})">Edit</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="removeField(${i})">Delete</button>
+      </div>`;
+    list.appendChild(el);
   });
 }
 
-document.getElementById('addUpdateBtn').addEventListener('click', function(){
-  const idx = parseInt(document.getElementById('editIndex').value, 10);
-  const name = document.getElementById('fieldName').value.trim();
-  const x = parseInt(document.getElementById('fieldX').value || 0, 10);
-  const y = parseInt(document.getElementById('fieldY').value || 0, 10);
-  const font_size = parseInt(document.getElementById('fieldFont').value || 24, 10);
-  const color = document.getElementById('fieldColor').value || '#000000';
-  const align = document.getElementById('fieldAlign').value || 'left';
-  if (!name) { showAlert('Field name required','danger'); return; }
+function renderOverlays() {
+  // remove previous overlays
+  const container = img.parentElement;
+  const old = document.getElementById('builderOverlays'); if (old) old.remove();
+  const ov = document.createElement('div');
+  ov.id = 'builderOverlays';
+  ov.style.position = 'absolute';
+  ov.style.left = 0; ov.style.top = 0; ov.style.width = '100%'; ov.style.height = '100%';
+  ov.style.pointerEvents = 'none';
+  ov.style.zIndex = 500;
+  container.appendChild(ov);
 
-  const payload = { name, x, y, font_size, color, align };
-  if (idx >= 0 && fields[idx]) {
-    fields[idx] = payload;
-    document.getElementById('editIndex').value = -1;
-    document.getElementById('addUpdateBtn').innerText = 'Add field';
-  } else {
-    fields.push(payload);
-  }
+  const rect = img.getBoundingClientRect();
+  const displayedW = rect.width; const displayedH = rect.height;
+  const scaleX = displayedW / (imgNaturalW || displayedW);
+  const scaleY = displayedH / (imgNaturalH || displayedH);
 
-  // reset form
-  document.getElementById('fieldForm').reset();
-  document.getElementById('fieldFont').value = 24;
-  document.getElementById('fieldColor').value = '#000000';
-  refreshFieldsList();
-});
+  existingFields.forEach((f) => {
+    const dx = Math.round(f.x * scaleX);
+    const dy = Math.round(f.y * scaleY);
 
-document.getElementById('clearBtn').addEventListener('click', function(){
-  document.getElementById('fieldForm').reset();
-  document.getElementById('editIndex').value = -1;
-  document.getElementById('addUpdateBtn').innerText = 'Add field';
-});
+    const badge = document.createElement('div');
+    badge.className = 'builder-badge';
+    badge.style.left = dx + 'px';
+    badge.style.top = dy + 'px';
+    badge.textContent = f.field_name;
+    ov.appendChild(badge);
+  });
+}
 
-function editField(i){
-  const f = fields[i];
+function editField(i) {
+  const f = existingFields[i];
   document.getElementById('editIndex').value = i;
-  document.getElementById('fieldName').value = f.name;
-  document.getElementById('fieldX').value = f.x;
-  document.getElementById('fieldY').value = f.y;
+  document.getElementById('fieldName').value = f.field_name || '';
+  document.getElementById('fieldX').value = f.x || 0;
+  document.getElementById('fieldY').value = f.y || 0;
+  document.getElementById('fieldType').value = f.field_type || 'text';
+  document.getElementById('fieldFontFamily').value = f.font_family || 'default';
   document.getElementById('fieldFont').value = f.font_size || 24;
   document.getElementById('fieldColor').value = f.color || '#000000';
   document.getElementById('fieldAlign').value = f.align || 'left';
-  document.getElementById('addUpdateBtn').innerText = 'Update field';
+  document.getElementById('fieldWidth').value = f.width || '';
+  document.getElementById('fieldHeight').value = f.height || '';
+  document.getElementById('fieldShape').value = f.shape || 'rect';
+  onFieldTypeChange();
+  document.getElementById('addUpdateBtn').textContent = 'Update field';
 }
 
-function deleteField(i){
-  if (!confirm('Delete this field?')) return;
-  fields.splice(i,1);
-  refreshFieldsList();
+function removeField(i) {
+  existingFields.splice(i,1);
+  renderFieldsList();
+  renderOverlays();
 }
 
-// POST helper with JSON and fallback
-async function postTo(url, bodyObj) {
-  try {
-    const r = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(bodyObj),
-    });
-    const data = await r.json().catch(()=>({}));
-    return { ok: r.ok, status: r.status, data };
-  } catch (e) {
-    console.warn("JSON POST failed", e);
+function clearForm(){
+  document.getElementById('fieldForm').reset();
+  document.getElementById('editIndex').value = -1;
+  document.getElementById('addUpdateBtn').textContent = 'Add field';
+  onFieldTypeChange();
+}
+
+function handleAddUpdate(e){
+  e.preventDefault();
+  const idx = parseInt(document.getElementById('editIndex').value || -1);
+  const field_name = (document.getElementById('fieldName').value || '').trim() || '';
+  const x = parseInt(document.getElementById('fieldX').value || 0) || 0;
+  const y = parseInt(document.getElementById('fieldY').value || 0) || 0;
+  const field_type = document.getElementById('fieldType').value || 'text';
+  const font_family = document.getElementById('fieldFontFamily').value || 'default';
+  const font_size = parseInt(document.getElementById('fieldFont').value || 24) || 24;
+  const color = (document.getElementById('fieldColor').value || '#000000').trim();
+  const align = document.getElementById('fieldAlign').value || 'left';
+  const width = document.getElementById('fieldWidth').value ? parseInt(document.getElementById('fieldWidth').value) : null;
+  const height = document.getElementById('fieldHeight').value ? parseInt(document.getElementById('fieldHeight').value) : null;
+  const shape = document.getElementById('fieldShape').value || 'rect';
+
+  const fObj = {
+    name: field_name,
+    field_name: field_name,
+    x: x,
+    y: y,
+    field_type: field_type,
+    font_family: font_family,
+    font_size: font_size,
+    color: color,
+    align: align,
+    width: width,
+    height: height,
+    shape: shape
+  };
+
+  if (idx >= 0 && idx < existingFields.length){
+    existingFields[idx] = fObj;
+  } else {
+    existingFields.push(fObj);
   }
-
-  // fallback: form encoded
-  try {
-    const form = new URLSearchParams();
-    form.append("fields", JSON.stringify(bodyObj.fields || []));
-    const r2 = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: form.toString(),
-    });
-    const data2 = await r2.json().catch(()=>({}));
-    return { ok: r2.ok, status: r2.status, data: data2 };
-  } catch (e2) {
-    console.warn("Form POST failed", e2);
-    return { ok: false, status: 0, data: {} };
-  }
+  clearForm();
+  renderFieldsList();
+  renderOverlays();
 }
 
-async function builderSave() {
-  const payload = { fields };
+function escapeHtml(s){ return (s+'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function builderSave(){
+  const payload = {
+    fields: existingFields.map(f => ({
+      field_name: f.field_name,
+      name: f.name || f.field_name,
+      x_position: f.x,
+      y_position: f.y,
+      field_type: f.field_type || 'text',
+      font_family: f.font_family || 'default',
+      font_size: f.font_size,
+      color: f.color,
+      align: f.align,
+      width: f.width,
+      height: f.height,
+      shape: f.shape
+    }))
+  };
+
   const btn = document.getElementById('saveBtn');
-  btn.disabled = true;
-  btn.innerText = 'Saving...';
+  btn.disabled = true; btn.textContent = 'Saving...';
 
-  const endpoints = [
-    `/admin/template/${templateId}/builder`,
-    `/admin/templates/${templateId}/fields`
-  ];
-
-  let lastErr = null;
-  for (const ep of endpoints) {
-    try {
-      const res = await postTo(ep, payload);
-      if (res.ok && res.data && (res.data.status === 'ok' || res.data.status === 'success')) {
-        showAlert('Fields saved successfully', 'success');
-        setTimeout(()=> location.reload(), 700);
-        return;
-      } else {
-        lastErr = res;
-        if (res.status === 404) continue;
-      }
-    } catch (err) {
-      lastErr = err;
+  try {
+    const res = await fetch(`/admin/template/${templateId}/builder`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(()=>({}));
+    if (res.ok && data.status === 'ok'){
+      showAlert('Saved successfully', 'success');
+      setTimeout(()=> location.reload(), 600);
+    } else {
+      showAlert('Save failed: ' + (data.message || res.statusText || 'unknown'), 'danger');
+      btn.disabled = false; btn.textContent = 'Save';
     }
+  } catch (err){
+    console.error(err);
+    showAlert('Save error: ' + err.message, 'danger');
+    btn.disabled = false; btn.textContent = 'Save';
   }
-
-  showAlert('Save failed. See server logs.', 'danger');
-  btn.disabled = false;
-  btn.innerText = 'Save';
 }
+
+function showAlert(msg, type='info'){
+  const p = document.getElementById('alertPlaceholder');
+  p.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+  setTimeout(()=>{ p.innerHTML = ''; }, 4000);
+}
+
+document.addEventListener('DOMContentLoaded', initBuilder);
+window.addEventListener('resize', renderOverlays);
 </script>
 {% endblock %}
 

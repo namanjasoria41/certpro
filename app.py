@@ -27,8 +27,8 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from PIL import Image, ImageDraw, ImageFont
 
-from sqlalchemy.exc import ProgrammingError
 
+from sqlalchemy.exc import ProgrammingError, IntegrityError
 from config import Config
 from models import (
     db,
@@ -1124,4 +1124,5 @@ def _generate_final_certificate_from_preview(user, template, preview_info):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 

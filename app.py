@@ -751,6 +751,7 @@ def save_template_fields(template, fields_list):
     try:
         # Delete existing fields for this template
         TemplateField.query.filter_by(template_id=template.id).delete()
+        db.session.flush()
 
         for idx, fd in enumerate(fields_list):
             # Normalize field dict keys (support many variants)
@@ -781,67 +782,103 @@ def save_template_fields(template, fields_list):
             # Create instance
             obj = TemplateField()
 
-            # Attempt to set all common attribute names so DB/mapping gets data whichever schema you have
-            # template id
+            # --- Explicitly set canonical DB column names to avoid schema mismatch ---
+            # Always set template_id
             try:
-                setattr(obj, "template_id", template.id)
+                obj.template_id = template.id
             except Exception:
                 app.logger.exception("Could not set template_id on TemplateField instance")
 
-            # field name / name (DB might require field_name)
-            for col in ("field_name", "name"):
+            # Always set both 'field_name' and 'name' (some schemas require one or the other)
+            try:
+                obj.field_name = field_name_val
+            except Exception:
+                # If model doesn't have attribute, set 'name' only
                 try:
-                    setattr(obj, col, field_name_val)
+                    obj.name = field_name_val
+                except Exception:
+                    pass
+            try:
+                obj.name = field_name_val
+            except Exception:
+                pass
+
+            # Always set both x_position and x (and y_position and y)
+            try:
+                obj.x_position = x_val
+            except Exception:
+                try:
+                    obj.x = x_val
+                except Exception:
+                    pass
+            try:
+                obj.x = x_val
+            except Exception:
+                pass
+
+            try:
+                obj.y_position = y_val
+            except Exception:
+                try:
+                    obj.y = y_val
+                except Exception:
+                    pass
+            try:
+                obj.y = y_val
+            except Exception:
+                pass
+
+            # font size
+            try:
+                obj.font_size = font_size_val
+            except Exception:
+                try:
+                    obj.size = font_size_val
                 except Exception:
                     pass
 
-            # x/x_position, y/y_position
-            for col in ("x", "x_position"):
+            # color
+            try:
+                obj.color = color_val
+            except Exception:
                 try:
-                    setattr(obj, col, x_val)
-                except Exception:
-                    pass
-            for col in ("y", "y_position"):
-                try:
-                    setattr(obj, col, y_val)
-                except Exception:
-                    pass
-
-            # font_size/size
-            for col in ("font_size", "size"):
-                try:
-                    setattr(obj, col, font_size_val)
-                except Exception:
-                    pass
-
-            # color/font_color
-            for col in ("color", "font_color"):
-                try:
-                    setattr(obj, col, color_val)
+                    obj.font_color = color_val
                 except Exception:
                     pass
 
             # align
             try:
-                setattr(obj, "align", align_val)
+                obj.align = align_val
             except Exception:
                 pass
 
-            # field_type/type
-            for col in ("field_type", "type"):
+            # field type
+            try:
+                obj.field_type = field_type_val
+            except Exception:
                 try:
-                    setattr(obj, col, field_type_val)
+                    obj.type = field_type_val
                 except Exception:
                     pass
 
             # Optional props: width, height, shape if provided
             try:
                 if "width" in fd:
-                    setattr(obj, "width", to_int(fd.get("width")))
+                    obj.width = to_int(fd.get("width"))
                 if "height" in fd:
-                    setattr(obj, "height", to_int(fd.get("height")))
+                    obj.height = to_int(fd.get("height"))
                 if "shape" in fd:
-                    setattr(obj, "shape", fd.get("shape"))
+                    obj.shape = fd.get("shape")
+            except Exception:
+                pass
+
+            # Final defensive debug: log attributes we intend to insert (good for debugging on staging)
+            try:
+                app.logger.debug("Saving TemplateField attrs: template_id=%s field_name=%s x_pos=%s y_pos=%s",
+                                 getattr(obj, "template_id", None),
+                                 getattr(obj, "field_name", getattr(obj, "name", None)),
+                                 getattr(obj, "x_position", getattr(obj, "x", None)),
+                                 getattr(obj, "y_position", getattr(obj, "y", None)))
             except Exception:
                 pass
 
@@ -852,12 +889,12 @@ def save_template_fields(template, fields_list):
     except IntegrityError as ie:
         db.session.rollback()
         app.logger.exception("DB integrity error saving template fields: %s", ie)
-        # Be explicit: likely missing NOT NULL; ensure fields include field_name, x_position, y_position
         return False, {"message": "Database integrity error (likely required column missing or null). Ensure each field has a name and coordinates."}
     except Exception as e:
         db.session.rollback()
         app.logger.exception("Unexpected error saving template fields: %s", e)
         return False, {"message": "Unknown database error while saving fields."}
+
 
 
 # ---------------------------
@@ -1248,4 +1285,5 @@ def _generate_final_certificate_from_preview(user, template, preview_info):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 

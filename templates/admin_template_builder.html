@@ -14,7 +14,7 @@
         <div class="card-body">
           <p class="small text-muted">Click anywhere on the image to get coordinates placed into the "New field" X/Y inputs.</p>
 
-          <div class="text-center border rounded" style="position:relative; overflow:hidden;">
+          <div id="imgWrap" class="text-center border rounded" style="position:relative; overflow:hidden;">
             {% if template.image_path %}
               <img id="templateImage"
                    src="{{ url_for('static', filename='templates/' + template.image_path) }}"
@@ -110,10 +110,99 @@
 </div>
 
 <script>
-// assume existingFields and templateId already set as before
+const existingFields = {{ fields | tojson | safe }};
+const templateId = {{ template.id }};
 
+function showAlert(msg, type = 'info') {
+  const el = document.getElementById('alertPlaceholder');
+  el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+  setTimeout(()=> el.innerHTML = '', 3500);
+}
+
+// fields working array
+let fields = existingFields.map(f => ({...f}));
+
+// render fields list
+function refreshFieldsList(){
+  const list = document.getElementById('fieldsList');
+  list.innerHTML = '';
+  fields.forEach((f,i) => {
+    const d = document.createElement('div');
+    d.className = 'd-flex justify-content-between align-items-center mb-1';
+    d.innerHTML = `<div><strong>${f.name}</strong> <span class="text-muted small">(${f.x},${f.y})</span></div>
+                   <div>
+                     <button class="btn btn-sm btn-outline-primary me-1" onclick="editField(${i})">Edit</button>
+                     <button class="btn btn-sm btn-outline-danger" onclick="deleteField(${i})">Del</button>
+                   </div>`;
+    list.appendChild(d);
+  });
+}
+refreshFieldsList();
+
+const img = document.getElementById('templateImage');
+if (img) {
+  img.addEventListener('click', function(evt){
+    const rect = img.getBoundingClientRect();
+    const x = Math.round(evt.clientX - rect.left);
+    const y = Math.round(evt.clientY - rect.top);
+    document.getElementById('fieldX').value = x;
+    document.getElementById('fieldY').value = y;
+    document.getElementById('clickCoords').innerText = `Clicked at: ${x}, ${y}`;
+  });
+}
+
+document.getElementById('addUpdateBtn').addEventListener('click', function(){
+  const idx = parseInt(document.getElementById('editIndex').value, 10);
+  const name = document.getElementById('fieldName').value.trim();
+  const x = parseInt(document.getElementById('fieldX').value || 0, 10);
+  const y = parseInt(document.getElementById('fieldY').value || 0, 10);
+  const font_size = parseInt(document.getElementById('fieldFont').value || 24, 10);
+  const color = document.getElementById('fieldColor').value || '#000000';
+  const align = document.getElementById('fieldAlign').value || 'left';
+  if (!name) { showAlert('Field name required','danger'); return; }
+
+  const payload = { name, x, y, font_size, color, align };
+  if (idx >= 0 && fields[idx]) {
+    fields[idx] = payload;
+    document.getElementById('editIndex').value = -1;
+    document.getElementById('addUpdateBtn').innerText = 'Add field';
+  } else {
+    fields.push(payload);
+  }
+
+  // reset form
+  document.getElementById('fieldForm').reset();
+  document.getElementById('fieldFont').value = 24;
+  document.getElementById('fieldColor').value = '#000000';
+  refreshFieldsList();
+});
+
+document.getElementById('clearBtn').addEventListener('click', function(){
+  document.getElementById('fieldForm').reset();
+  document.getElementById('editIndex').value = -1;
+  document.getElementById('addUpdateBtn').innerText = 'Add field';
+});
+
+function editField(i){
+  const f = fields[i];
+  document.getElementById('editIndex').value = i;
+  document.getElementById('fieldName').value = f.name;
+  document.getElementById('fieldX').value = f.x;
+  document.getElementById('fieldY').value = f.y;
+  document.getElementById('fieldFont').value = f.font_size || 24;
+  document.getElementById('fieldColor').value = f.color || '#000000';
+  document.getElementById('fieldAlign').value = f.align || 'left';
+  document.getElementById('addUpdateBtn').innerText = 'Update field';
+}
+
+function deleteField(i){
+  if (!confirm('Delete this field?')) return;
+  fields.splice(i,1);
+  refreshFieldsList();
+}
+
+// POST helper with JSON and fallback
 async function postTo(url, bodyObj) {
-  // try sending JSON first
   try {
     const r = await fetch(url, {
       method: "POST",
@@ -123,10 +212,10 @@ async function postTo(url, bodyObj) {
     const data = await r.json().catch(()=>({}));
     return { ok: r.ok, status: r.status, data };
   } catch (e) {
-    console.warn("JSON POST failed to", url, e);
+    console.warn("JSON POST failed", e);
   }
 
-  // fallback: send as form-encoded 'fields' param
+  // fallback: form encoded
   try {
     const form = new URLSearchParams();
     form.append("fields", JSON.stringify(bodyObj.fields || []));
@@ -138,21 +227,20 @@ async function postTo(url, bodyObj) {
     const data2 = await r2.json().catch(()=>({}));
     return { ok: r2.ok, status: r2.status, data: data2 };
   } catch (e2) {
-    console.warn("Form POST failed to", url, e2);
+    console.warn("Form POST failed", e2);
     return { ok: false, status: 0, data: {} };
   }
 }
 
 async function builderSave() {
-  const payload = { fields: existingFields };
-
+  const payload = { fields };
   const btn = document.getElementById('saveBtn');
   btn.disabled = true;
-  btn.textContent = 'Saving...';
+  btn.innerText = 'Saving...';
 
   const endpoints = [
     `/admin/template/${templateId}/builder`,
-    `/admin/templates/${templateId}/fields`  // compatibility
+    `/admin/templates/${templateId}/fields`
   ];
 
   let lastErr = null;
@@ -165,24 +253,17 @@ async function builderSave() {
         return;
       } else {
         lastErr = res;
-        console.warn("save attempt failed", ep, res);
-        // If 404 specifically, continue to next endpoint
         if (res.status === 404) continue;
       }
     } catch (err) {
-      console.error("Error posting to", ep, err);
       lastErr = err;
     }
   }
 
-  // If we get here, all endpoints failed
-  let msg = "Save failed.";
-  if (lastErr && lastErr.data && lastErr.data.message) msg += " " + lastErr.data.message;
-  showAlert(msg, 'danger');
+  showAlert('Save failed. See server logs.', 'danger');
   btn.disabled = false;
-  btn.textContent = 'Save';
+  btn.innerText = 'Save';
 }
 </script>
-
 {% endblock %}
 

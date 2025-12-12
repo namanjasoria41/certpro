@@ -1,93 +1,187 @@
+# models.py
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
+from sqlalchemy import LargeBinary
+from datetime import datetime
 
 db = SQLAlchemy()
 
+
 class User(UserMixin, db.Model):
+    __tablename__ = "user"
+
     id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=True)
     phone = db.Column(db.String(20), unique=True, nullable=True)
     password = db.Column(db.String(200), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     wallet_balance = db.Column(db.Float, default=0.0)
 
-    # NEW – who referred this user (optional, for analytics)
-    referred_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
-    referred_by = db.relationship('User', remote_side=[id], backref='referred_users')
+    # Referral: who referred this user (optional)
+    referred_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    referred_by = db.relationship("User", remote_side=[id], backref="referred_users")
 
-    transactions = db.relationship('Transaction', backref='user', lazy=True)
-
-class Template(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(200), nullable=False)
-    category = db.Column(db.String(100), nullable=False)
-    price = db.Column(db.Float, default=0.0)
-    image_path = db.Column(db.String(300), nullable=False)
-    fields = db.relationship(
-        'TemplateField',
-        backref='template',
-        lazy=True,
-        cascade='all, delete-orphan'
+    # relationships
+    transactions = db.relationship("Transaction", backref="user", lazy=True)
+    referral_codes = db.relationship("ReferralCode", backref="owner", lazy=True)
+    referral_redemptions = db.relationship(
+        "ReferralRedemption", backref="redeemed_by_user", lazy=True
     )
 
+    def __repr__(self):
+        return f"<User id={self.id} email={self.email} admin={self.is_admin}>"
+
+
+class Template(db.Model):
+    __tablename__ = "template"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    category = db.Column(db.String(100), nullable=True)
+    price = db.Column(db.Float, default=0.0)
+
+    # Local filesystem filename (legacy / optional)
+    image_path = db.Column(db.String(500), nullable=True)
+
+    # Option A: store binary image in DB (bytea) so templates don't go missing on ephemeral storage
+    image_data = db.Column(LargeBinary, nullable=True)
+    image_mime = db.Column(db.String(120), nullable=True)
+
+    # Optional: URL if you store image on S3/Cloudinary
+    image_url = db.Column(db.Text, nullable=True)
+
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+    fields = db.relationship(
+        "TemplateField",
+        backref="template",
+        lazy=True,
+        cascade="all, delete-orphan",
+        order_by="TemplateField.id",
+    )
+
+    def __repr__(self):
+        return f"<Template id={self.id} name={self.name}>"
+
+
 class TemplateField(db.Model):
+    """
+    Single field on a template. This schema supports text fields and image fields.
+    We keep attribute names that match the various versions of your app code:
+      - code expects: name, x, y, font_size, color, align
+      - older uploaded model used: field_name, x_position, y_position, width, height
+    This class exposes the modern attributes and also defines legacy-named properties
+    that map to the same underlying columns for compatibility.
+    """
+
+    __tablename__ = "template_field"
+
     id = db.Column(db.Integer, primary_key=True)
-    template_id = db.Column(db.Integer, db.ForeignKey('template.id'), nullable=False)
-    field_name = db.Column(db.String(100), nullable=False)
-    field_type = db.Column(db.String(20), nullable=False)  # 'text' or 'image'
-    x_position = db.Column(db.Integer, nullable=False)
-    y_position = db.Column(db.Integer, nullable=False)
+    template_id = db.Column(db.Integer, db.ForeignKey("template.id"), nullable=False)
 
-    # Text field properties
-    font_size = db.Column(db.Integer)
-    font_color = db.Column(db.String(20))
+    # Primary name (used in app code)
+    name = db.Column(db.String(120), nullable=False)
 
-    # Image field properties
-    width = db.Column(db.Integer)
-    height = db.Column(db.Integer)
-    shape = db.Column(db.String(20))  # 'rect' or 'circle'
+    # Field type: 'text' or 'image'
+    field_type = db.Column(db.String(20), default="text", nullable=False)
 
-# NEW – referral code model
+    # Coordinates & layout
+    x = db.Column(db.Integer, nullable=False, default=0)
+    y = db.Column(db.Integer, nullable=False, default=0)
+
+    # Text-specific props
+    font_size = db.Column(db.Integer, nullable=True)
+    color = db.Column(db.String(30), nullable=True)  # hex or color name
+    align = db.Column(db.String(20), nullable=True, default="left")
+
+    # Image-specific props
+    width = db.Column(db.Integer, nullable=True)
+    height = db.Column(db.Integer, nullable=True)
+    shape = db.Column(db.String(20), nullable=True)  # 'rect' or 'circle'
+
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+    # --- Legacy aliases for compatibility with older schema names / templates ---
+    @property
+    def field_name(self):
+        return self.name
+
+    @field_name.setter
+    def field_name(self, v):
+        self.name = v
+
+    @property
+    def x_position(self):
+        return self.x
+
+    @x_position.setter
+    def x_position(self, v):
+        self.x = v
+
+    @property
+    def y_position(self):
+        return self.y
+
+    @y_position.setter
+    def y_position(self, v):
+        self.y = v
+
+    def __repr__(self):
+        return f"<TemplateField id={self.id} name={self.name} type={self.field_type} x={self.x} y={self.y}>"
+
+
 class ReferralCode(db.Model):
+    __tablename__ = "referral_code"
+
     id = db.Column(db.Integer, primary_key=True)
-    code = db.Column(db.String(20), unique=True, nullable=False)
+    code = db.Column(db.String(40), unique=True, nullable=False)
 
-    # Which user owns/shares this code
-    owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    owner = db.relationship('User', backref='referral_codes')
+    owner_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
 
-    # How much wallet credit this code gives when used
     reward_amount = db.Column(db.Float, nullable=False, default=0.0)
-
-    # How many times this code can be used (None = unlimited)
     max_uses = db.Column(db.Integer, nullable=True)
     used_count = db.Column(db.Integer, default=0)
-
-    # Optional expiry
     expires_at = db.Column(db.DateTime, nullable=True)
-
     is_active = db.Column(db.Boolean, default=True)
 
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 
-# NEW – log of each referral redemption
+    redemptions = db.relationship("ReferralRedemption", backref="referral_code", lazy=True)
+
+    def __repr__(self):
+        return f"<ReferralCode {self.code} owner={self.owner_id} used={self.used_count}>"
+
+
 class ReferralRedemption(db.Model):
+    __tablename__ = "referral_redemption"
+
     id = db.Column(db.Integer, primary_key=True)
+    referral_code_id = db.Column(db.Integer, db.ForeignKey("referral_code.id"), nullable=False)
 
-    referral_code_id = db.Column(db.Integer, db.ForeignKey('referral_code.id'), nullable=False)
-    referral_code = db.relationship('ReferralCode', backref='redemptions')
+    redeemed_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
 
-    redeemed_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    redeemed_by_user = db.relationship('User', backref='referral_redemptions')
-
-    reward_amount = db.Column(db.Float, nullable=False)
+    reward_amount = db.Column(db.Float, nullable=False, default=0.0)
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+    def __repr__(self):
+        return f"<ReferralRedemption code_id={self.referral_code_id} user={self.redeemed_by_user_id}>"
+
 
 class Transaction(db.Model):
+    __tablename__ = "transaction"
+
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
     amount = db.Column(db.Float, nullable=False)
     transaction_type = db.Column(db.String(20), nullable=False)  # 'credit' or 'debit'
-    description = db.Column(db.String(200))
+    description = db.Column(db.String(300), nullable=True)
+
+    # optional: mark Razorpay payment id for idempotency
+    razorpay_payment_id = db.Column(db.String(200), nullable=True, unique=False)
+
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+    def __repr__(self):
+        return f"<Transaction id={self.id} user={self.user_id} {self.transaction_type} {self.amount}>"
 

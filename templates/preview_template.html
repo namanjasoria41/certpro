@@ -1,46 +1,41 @@
-{% extends "base.html" %}
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Preview - {{ template.name }}</title>
+  <style>.thumb{max-width:160px;max-height:100px;display:block;margin-top:.5rem}</style>
+</head>
+<body>
+  <h1>Preview: {{ template.name }}</h1>
 
-{% block title %}Preview - {{ template.name }}{% endblock %}
-
-{% block content %}
-<div class="container mt-4">
-  <h2 class="mb-3">Preview: {{ template.name }}</h2>
-
-  {% if preview_url %}
-    <div class="mb-4">
-      <h5>Preview</h5>
-      <img src="{{ preview_url }}" class="img-fluid rounded" alt="Preview">
-    </div>
-
-    <form method="POST" action="{{ url_for('purchase_template', template_id=template.id) }}">
-      <div class="d-flex gap-2 mb-3">
-        {% if current_user.wallet_balance >= (template.price or 0) %}
-        <button name="pay_with_wallet" value="1" class="btn btn-success">
-          Pay from Wallet (₹{{ '%.2f'|format(template.price or 0) }})
-        </button>
+  <form method="post" enctype="multipart/form-data" id="preview-form">
+    {% for f in fields %}
+      {% set key = f.field_name if f.field_name else f.name %}
+      <div>
+        <label>{{ key }} ({{ f.field_type }})</label><br/>
+        {% if (f.field_type or 'text').lower() == 'image' %}
+          <input type="file" name="{{ key }}" accept="image/*" data-field="{{ key }}" class="image-input"/>
+          <img id="preview-{{ key }}" class="thumb" style="display:none" />
+        {% else %}
+          <input type="text" name="{{ key }}" placeholder="{{ key }}" />
         {% endif %}
-
-        <button type="submit" class="btn btn-primary">Pay with Razorpay (₹{{ '%.2f'|format(template.price or 0) }})</button>
-
-        <a href="{{ url_for('preview_template', template_id=template.id) }}" class="btn btn-outline-secondary">
-          Edit Values
-        </a>
       </div>
-    </form>
+    {% endfor %}
+    <button type="submit">Generate Preview</button>
+  </form>
 
-  {% else %}
-    <form method="POST" action="{{ url_for('preview_template', template_id=template.id) }}">
-      {% for field in fields %}
-        <div class="mb-3">
-          <label class="form-label">{{ field.name }}</label>
-          <input type="text" name="{{ field.name }}" class="form-control"
-                 value="{{ request.form.get(field.name, '') }}">
-        </div>
-      {% endfor %}
+  <script>
+    document.querySelectorAll('.image-input').forEach(function(inp){
+      inp.addEventListener('change', function(e){
+        const file = e.target.files && e.target.files[0];
+        const field = e.target.dataset.field;
+        const img = document.getElementById('preview-' + field);
+        if (!file) { img.style.display = 'none'; img.src = ''; return; }
+        img.src = URL.createObjectURL(file);
+        img.style.display = 'block';
+      });
+    });
+  </script>
+</body>
+</html>
 
-      <button type="submit" class="btn btn-primary">Generate Preview</button>
-      <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Cancel</a>
-    </form>
-  {% endif %}
-</div>
-{% endblock %}

@@ -1,35 +1,34 @@
 {% extends "base.html" %}
-{% block title %}Missing Template Images (Admin){% endblock %}
+{% block title %}Missing template files{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-  <h3>Templates with missing image files</h3>
-  <p class="text-muted">These templates point to image files that don't exist on the server. Re-upload or delete them.</p>
+<div class="container my-4">
+  <h3>Missing template images</h3>
+  <p class="text-muted">Templates whose base image file is missing on disk. Use the Upload button to re-upload the image for that template.</p>
 
   {% if missing %}
-    <table class="table table-striped">
-      <thead>
-        <tr><th>ID</th><th>Name</th><th>Image path</th><th>Actions</th></tr>
-      </thead>
-      <tbody>
-        {% for m in missing %}
-        <tr>
-          <td>{{ m.id }}</td>
-          <td>{{ m.name }}</td>
-          <td><code>{{ m.image_path }}</code></td>
-          <td>
-            <a href="{{ url_for('admin_edit_template', template_id=m.id) }}" class="btn btn-sm btn-warning">Edit</a>
-            <form method="POST" action="{{ url_for('admin_delete_template', template_id=m.id) }}" style="display:inline-block;" onsubmit="return confirm('Delete template?');">
-              <button class="btn btn-sm btn-danger">Delete</button>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="row">
+      {% for m in missing %}
+        <div class="col-md-6">
+          <div class="card mb-3">
+            <div class="card-body">
+              <h5>{{ m.name }} <small class="text-muted">(#{{ m.id }})</small></h5>
+              <p class="small">Expected path: <code>{{ m.image_path }}</code></p>
+              <form method="post" action="{{ url_for('admin_restore_template_image', template_id=m.id) }}" enctype="multipart/form-data">
+                <div class="mb-2">
+                  <input type="file" name="image" accept="image/png,image/jpeg" required />
+                </div>
+                <button class="btn btn-primary btn-sm">Upload & Replace</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
   {% else %}
-    <div class="alert alert-success">No missing template files found.</div>
+    <div class="alert alert-success">No missing template images detected.</div>
   {% endif %}
 </div>
 {% endblock %}
+
 

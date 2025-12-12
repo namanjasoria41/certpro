@@ -531,7 +531,7 @@ def forgot_password():
         flash("Password updated successfully. Please log in.", "success")
         return redirect(url_for("login"))
 
-    return render_template("forgot_password.html"))
+    return render_template("forgot_password.html")
 
 
 # --------------------------------------------------------------------------
@@ -1423,4 +1423,5 @@ def _generate_final_certificate_from_preview(user, template, preview_info):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 

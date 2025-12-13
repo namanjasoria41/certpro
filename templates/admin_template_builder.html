@@ -12,9 +12,9 @@
 
     <!-- LEFT TOOLBAR -->
     <div class="builder-toolbar">
-
         <button class="tool-btn" onclick="addText()">Text</button>
-        <button class="tool-btn" onclick="triggerImageUpload()">Image</button>
+        <button class="tool-btn" onclick="addImagePlaceholder()">Image Box</button>
+        <button class="tool-btn" onclick="addCirclePlaceholder()">Circle Image</button>
         <button class="tool-btn" onclick="addRectangle()">Rect</button>
         <button class="tool-btn" onclick="addCircle()">Circle</button>
 
@@ -27,10 +27,7 @@
         <button class="tool-btn" onclick="showAll()">Show All</button>
 
         <button class="tool-btn delete-btn" onclick="deleteSelected()">Delete</button>
-
-        <input id="imageUploadInput" type="file" accept="image/*" style="display:none">
     </div>
-
 
     <!-- CANVAS AREA -->
     <div class="builder-canvas-wrapper">
@@ -45,41 +42,23 @@
         </div>
     </div>
 
-
     <!-- RIGHT PANEL -->
     <div class="builder-properties">
-
         <h5>Field Properties</h5>
 
         <label>Field Name</label>
         <input id="propName" onchange="updateName()">
 
         <label>Font Size</label>
-        <input type="number" id="propFontSize" onchange="updateFontSize()">
+        <input id="propFontSize" type="number" onchange="updateFontSize()">
 
         <label>Color</label>
-        <input type="color" id="propColor" onchange="updateColor()">
-
-        <label>Font Family</label>
-        <select id="propFontFamily" onchange="updateFontFamily()">
-            <option>Arial</option>
-            <option>Roboto</option>
-            <option>Poppins</option>
-            <option>Times New Roman</option>
-        </select>
-
-        <label>Align</label>
-        <select id="propAlign" onchange="updateAlign()">
-            <option value="left">Left</option>
-            <option value="center">Center</option>
-            <option value="right">Right</option>
-        </select>
+        <input id="propColor" type="color" onchange="updateColor()">
 
         <h5 class="mt-4">Layers</h5>
         <ul id="layerList" class="layer-list"></ul>
 
         <button class="save-btn" onclick="saveTemplate()">Save Template</button>
-
     </div>
 
 </div>
@@ -97,3 +76,4 @@
 
 <script src="{{ url_for('static', filename='js/builder.js') }}"></script>
 {% endblock %}
+

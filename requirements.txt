@@ -6,3 +6,5 @@ python-dotenv
 psycopg2-binary
 gunicorn
 razorpay
+weasyprint
+

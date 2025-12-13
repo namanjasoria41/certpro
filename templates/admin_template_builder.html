@@ -10,19 +10,29 @@
 
 <div class="builder-container">
 
-    <!-- Left Toolbar -->
+    <!-- LEFT TOOLBAR -->
     <div class="builder-toolbar">
+
         <button class="tool-btn" onclick="addText()">Text</button>
         <button class="tool-btn" onclick="triggerImageUpload()">Image</button>
         <button class="tool-btn" onclick="addRectangle()">Rect</button>
         <button class="tool-btn" onclick="addCircle()">Circle</button>
+
+        <button class="tool-btn" onclick="undo()">Undo</button>
+        <button class="tool-btn" onclick="redo()">Redo</button>
+
+        <button class="tool-btn" onclick="lockSelected()">Lock</button>
+        <button class="tool-btn" onclick="unlockSelected()">Unlock</button>
+        <button class="tool-btn" onclick="hideSelected()">Hide</button>
+        <button class="tool-btn" onclick="showAll()">Show All</button>
+
         <button class="tool-btn delete-btn" onclick="deleteSelected()">Delete</button>
 
         <input id="imageUploadInput" type="file" accept="image/*" style="display:none">
     </div>
 
 
-    <!-- Canvas Area -->
+    <!-- CANVAS AREA -->
     <div class="builder-canvas-wrapper">
         <div id="builderCanvasContainer">
             <canvas id="builderCanvas"></canvas>
@@ -36,7 +46,7 @@
     </div>
 
 
-    <!-- Properties Panel -->
+    <!-- RIGHT PANEL -->
     <div class="builder-properties">
 
         <h5>Field Properties</h5>
@@ -53,8 +63,8 @@
         <label>Font Family</label>
         <select id="propFontFamily" onchange="updateFontFamily()">
             <option>Arial</option>
-            <option>Poppins</option>
             <option>Roboto</option>
+            <option>Poppins</option>
             <option>Times New Roman</option>
         </select>
 
@@ -65,9 +75,11 @@
             <option value="right">Right</option>
         </select>
 
-        <hr>
+        <h5 class="mt-4">Layers</h5>
+        <ul id="layerList" class="layer-list"></ul>
 
         <button class="save-btn" onclick="saveTemplate()">Save Template</button>
+
     </div>
 
 </div>

@@ -1,54 +1,114 @@
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Fill Template - {{ template.name }}</title>
-  <style>
-    .field-row { margin-bottom: 1rem; }
-    .thumb { max-width: 160px; max-height: 100px; display:block; margin-top: .5rem; }
-  </style>
-</head>
-<body>
-  <h1>Fill: {{ template.name }}</h1>
+{% extends "base.html" %}
 
-  <!-- IMPORTANT: enctype to allow file uploads -->
-  <form method="post" enctype="multipart/form-data" id="fill-form">
-    {% for f in fields %}
-      {% set key = f.field_name if f.field_name else f.name %}
-      <div class="field-row">
-        <label><strong>{{ key }}</strong> (type: {{ f.field_type }})</label><br/>
+{% block title %}Fill Template — {{ template.name }}{% endblock %}
 
-        {% if (f.field_type or 'text').lower() == 'image' %}
-          <!-- file input for image fields -->
-          <input type="file" name="{{ key }}" accept="image/*" data-field="{{ key }}" class="image-input" />
-          <img id="preview-{{ key }}" class="thumb" src="" alt="No file chosen" style="display:none;" />
-          {% if f.width and f.height %}
-            <div style="font-size:0.9rem;color:#666">Suggested size: {{ f.width }}×{{ f.height }}</div>
-          {% endif %}
-        {% else %}
-          <!-- text input for text fields -->
-          <input type="text" name="{{ key }}" value="" placeholder="{{ key }}" />
-        {% endif %}
-      </div>
-    {% endfor %}
+{% block extra_css %}
+<style>
+    .field-card {
+        background: rgba(255,255,255,0.06);
+        padding: 18px;
+        border-radius: 12px;
+        margin-bottom: 18px;
+        backdrop-filter: blur(10px);
+    }
 
-    <button type="submit">Generate</button>
-  </form>
+    label {
+        font-weight: 600;
+        color: #ddd;
+        margin-bottom: 6px;
+    }
 
-  <script>
-    // Show image preview when user chooses a file
-    document.querySelectorAll('.image-input').forEach(function(inp){
-      inp.addEventListener('change', function(e){
-        const file = e.target.files && e.target.files[0];
-        const field = e.target.dataset.field;
-        const img = document.getElementById('preview-' + field);
-        if (!file) { img.style.display = 'none'; img.src = ''; return; }
-        const url = URL.createObjectURL(file);
-        img.src = url;
-        img.style.display = 'block';
-      });
-    });
-  </script>
-</body>
-</html>
+    input[type="text"],
+    input[type="file"],
+    input[type="number"] {
+        width: 100%;
+        background: rgba(255,255,255,0.15);
+        color: #fff;
+        border: none;
+        padding: 10px;
+        border-radius: 8px;
+        margin-bottom: 12px;
+    }
+
+    input::placeholder {
+        color: #ccc;
+    }
+
+    .submit-btn {
+        width: 100%;
+        padding: 13px;
+        border-radius: 10px;
+        border: none;
+        background: #007bff;
+        color: #fff;
+        font-weight: 600;
+        font-size: 18px;
+        transition: 0.25s;
+    }
+
+    .submit-btn:hover {
+        background: #0a5fd0;
+    }
+
+    .image-preview {
+        margin-top: 8px;
+        width: 120px;
+        height: 120px;
+        object-fit: cover;
+        border-radius: 10px;
+        border: 2px solid rgba(255,255,255,0.2);
+        display: none;
+    }
+</style>
+{% endblock %}
+
+
+{% block content %}
+
+<div class="container py-4">
+
+    <h2 class="text-center mb-4">{{ template.name }}</h2>
+
+    <form action="{{ url_for('fill_template', template_id=template.id) }}" method="POST" enctype="multipart/form-data">
+
+        {% for f in fields %}
+        <div class="field-card">
+
+            <label>{{ f.field_name|capitalize }}</label>
+
+            {% if f.field_type == "text" %}
+                <input type="text"
+                       name="{{ f.field_name }}"
+                       placeholder="Enter {{ f.field_name }}"
+                       required>
+
+            {% elif f.field_type == "image" %}
+                <input type="file"
+                       name="{{ f.field_name }}"
+                       accept="image/*"
+                       onchange="previewImage(event, '{{ f.field_name }}')">
+
+                <img id="preview_{{ f.field_name }}" class="image-preview">
+            {% endif %}
+
+        </div>
+        {% endfor %}
+
+        <button type="submit" class="submit-btn">Continue to Preview</button>
+
+    </form>
+</div>
+
+
+{% block extra_js %}
+<script>
+function previewImage(event, fieldName) {
+    const img = document.getElementById("preview_" + fieldName);
+    img.src = URL.createObjectURL(event.target.files[0]);
+    img.style.display = "block";
+}
+</script>
+{% endblock %}
+
+{% endblock %}
 

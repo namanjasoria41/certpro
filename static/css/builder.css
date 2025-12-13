@@ -1,194 +1,84 @@
-/* ---------------------------------------------
-   BUILDER 3-COLUMN GRID LAYOUT
---------------------------------------------- */
 .builder-container {
     display: grid;
     grid-template-columns: 90px 1fr 280px;
-    grid-gap: 0;
-    height: calc(100vh - 120px);
-    margin-top: 20px;
-    overflow: hidden;
+    height: calc(100vh - 100px);
 }
 
-/* ---------------------------------------------
-   LEFT TOOLBAR
---------------------------------------------- */
 .builder-toolbar {
     background: rgba(255,255,255,0.07);
-    backdrop-filter: blur(10px);
-    padding: 15px 10px;
+    padding: 10px;
     display: flex;
     flex-direction: column;
     gap: 12px;
-    border-right: 1px solid rgba(255,255,255,0.15);
 }
 
 .tool-btn {
-    width: 100%;
-    padding: 11px 0;
+    padding: 10px;
+    border-radius: 7px;
     border: none;
-    border-radius: 8px;
     background: rgba(255,255,255,0.18);
     color: white;
-    font-weight: 600;
     cursor: pointer;
-    transition: 0.25s;
+    font-weight: 600;
 }
 
 .tool-btn:hover {
-    background: rgba(255,255,255,0.30);
+    background: rgba(255,255,255,0.28);
 }
 
-.delete-btn {
-    background: rgba(255,50,50,0.4);
-}
-
-.delete-btn:hover {
-    background: rgba(255,50,50,0.6);
-}
-
-/* ---------------------------------------------
-   CANVAS AREA
---------------------------------------------- */
 .builder-canvas-wrapper {
     position: relative;
-    background: #090909;
-    overflow: auto;
     display: flex;
     justify-content: center;
     align-items: center;
-}
-
-#builderCanvasContainer {
-    padding: 20px;
-    position: relative;
+    background: #111;
+    overflow: auto;
 }
 
 #builderCanvas {
     border: 1px dashed rgba(255,255,255,0.25);
-    background: transparent;
 }
 
-/* ---------------------------------------------
-   ZOOM CONTROLS
---------------------------------------------- */
 .zoom-controls {
     position: absolute;
     bottom: 20px;
     right: 20px;
     background: rgba(255,255,255,0.15);
-    padding: 10px 15px;
-    border-radius: 12px;
+    padding: 10px;
+    border-radius: 10px;
     display: flex;
     gap: 10px;
-    backdrop-filter: blur(10px);
 }
 
-.zoom-controls button {
-    background: rgba(255,255,255,0.25);
-    border: none;
-    padding: 5px 13px;
-    border-radius: 6px;
-    color: white;
-    font-size: 18px;
+.builder-properties {
+    background: rgba(255,255,255,0.08);
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.layer-list {
+    list-style: none;
+    padding: 0;
+    margin-top: 15px;
+}
+
+.layer-list li {
+    padding: 8px;
+    margin-bottom: 6px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 8px;
     cursor: pointer;
 }
 
-#zoomValue {
-    color: white;
-    font-weight: 600;
-}
-
-/* ---------------------------------------------
-   RIGHT PROPERTIES PANEL
---------------------------------------------- */
-.builder-properties {
-    background: rgba(255,255,255,0.06);
-    padding: 22px;
-    overflow-y: auto;
-    backdrop-filter: blur(12px);
-    border-left: 1px solid rgba(255,255,255,0.15);
-}
-
-.builder-properties h5 {
-    color: white;
-    margin-bottom: 15px;
-}
-
-.builder-properties label {
-    margin-top: 14px;
-    margin-bottom: 6px;
-    color: #ddd;
-    font-size: 14px;
-}
-
-.builder-properties input,
-.builder-properties select {
-    width: 100%;
-    padding: 9px;
-    background: rgba(255,255,255,0.18);
-    border: none;
-    border-radius: 7px;
-    color: white;
-}
-
-.builder-properties input[type="color"] {
-    padding: 0;
-    height: 40px;
-}
-
-/* Save button */
 .save-btn {
-    margin-top: 25px;
     width: 100%;
-    padding: 11px 0;
+    padding: 12px;
     background: #007bff;
     border: none;
     border-radius: 8px;
     color: white;
-    font-weight: 600;
-    cursor: pointer;
-    transition: .25s;
+    font-weight: 700;
+    margin-top: 20px;
 }
 
-.save-btn:hover {
-    background: #0a5fd0;
-}
-
-/* ---------------------------------------------
-   LAYER LIST (Canva-style)
---------------------------------------------- */
-.layer-list {
-    list-style: none;
-    margin-top: 15px;
-    max-height: 220px;
-    overflow-y: auto;
-    padding-left: 0;
-}
-
-.layer-list li {
-    padding: 9px;
-    background: rgba(255,255,255,0.12);
-    border-radius: 7px;
-    margin-bottom: 6px;
-    cursor: pointer;
-    transition: 0.2s;
-    color: white;
-}
-
-.layer-list li:hover {
-    background: rgba(255,255,255,0.20);
-}
-
-/* Scrollbars */
-.builder-canvas-wrapper::-webkit-scrollbar,
-.builder-properties::-webkit-scrollbar {
-    width: 8px;
-}
-
-.builder-canvas-wrapper::-webkit-scrollbar-thumb,
-.builder-properties::-webkit-scrollbar-thumb {
-    background: rgba(255,255,255,0.25);
-    border-radius: 8px;
-}
 

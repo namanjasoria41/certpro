@@ -21,14 +21,15 @@ const snapTolerance = 6;
 fabric.Image.fromURL(TEMPLATE_URL, function(img) {
     canvas.setWidth(img.width);
     canvas.setHeight(img.height);
-    img.set({ selectable: false, evented: false });
 
+    img.set({ selectable: false, evented: false });
     canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
+
     loadExistingFields();
 });
 
 /***************************************
- * LOAD EXISTING FIELDS
+ * LOAD EXISTING FIELDS FROM DATABASE
  ***************************************/
 function loadExistingFields() {
     EXISTING_FIELDS.forEach(f => {
@@ -41,24 +42,37 @@ function loadExistingFields() {
                 fontSize: f.font_size,
                 fill: f.color,
                 fontFamily: f.font_family,
-                textAlign: f.align || "left",
+                textAlign: f.align || "left"
             });
         }
+
         else if (f.field_type === "image") {
-            obj = new fabric.Rect({
-                left: f.x,
-                top: f.y,
-                width: f.width,
-                height: f.height,
-                fill: "rgba(255,255,255,0.25)",
-                stroke: "#aaa",
-            });
-        }
-        else {
-            return;
+            if (f.shape === "circle") {
+                obj = new fabric.Circle({
+                    left: f.x,
+                    top: f.y,
+                    radius: f.width / 2,
+                    fill: "rgba(255,255,255,0.15)",
+                    stroke: "#00aaff",
+                    strokeWidth: 2
+                });
+            } else {
+                obj = new fabric.Rect({
+                    left: f.x,
+                    top: f.y,
+                    width: f.width,
+                    height: f.height,
+                    fill: "rgba(255,255,255,0.15)",
+                    stroke: "#00aaff",
+                    strokeWidth: 2
+                });
+            }
         }
 
         obj.customId = f.field_name || f.name;
+        obj.field_type = f.field_type;
+        obj.shape = f.shape;
+
         canvas.add(obj);
     });
 
@@ -67,98 +81,107 @@ function loadExistingFields() {
 }
 
 /***************************************
- * TOOLBAR FUNCTIONS
+ * TOOLBAR ACTIONS
  ***************************************/
 function addText() {
-    let text = new fabric.Textbox("New Field", {
+    let t = new fabric.Textbox("New Field", {
         left: 60,
         top: 60,
         fontSize: 32,
-        fill: "#ffffff",
-        fontFamily: "Arial"
+        fill: "#ffffff"
     });
-    text.customId = "field_" + Date.now();
-    canvas.add(text);
-    canvas.setActiveObject(text);
+
+    t.customId = "field_" + Date.now();
+    t.field_type = "text";
+
+    canvas.add(t);
+    canvas.setActiveObject(t);
     saveState();
     updateProperties();
 }
 
 function addRectangle() {
-    let rect = new fabric.Rect({
+    let r = new fabric.Rect({
         left: 80,
         top: 80,
         width: 200,
         height: 80,
-        fill: "rgba(255,255,255,0.18)",
-        stroke: "#fff"
+        fill: "rgba(255,255,255,0.15)",
+        stroke: "#00aaff",
+        strokeWidth: 2
     });
-    rect.customId = "field_" + Date.now();
-    canvas.add(rect);
-    canvas.setActiveObject(rect);
+
+    r.customId = "field_" + Date.now();
+    r.field_type = "shape";
+    r.shape = "rect";
+
+    canvas.add(r);
+    canvas.setActiveObject(r);
     saveState();
-    updateProperties();
 }
 
 function addCircle() {
-    let circle = new fabric.Circle({
+    let c = new fabric.Circle({
         left: 120,
         top: 120,
         radius: 60,
-        fill: "rgba(255,255,255,0.18)",
-        stroke: "#fff"
+        fill: "rgba(255,255,255,0.15)",
+        stroke: "#00aaff",
+        strokeWidth: 2
     });
-    circle.customId = "field_" + Date.now();
-    canvas.add(circle);
-    canvas.setActiveObject(circle);
+
+    c.customId = "field_" + Date.now();
+    c.field_type = "shape";
+    c.shape = "circle";
+
+    canvas.add(c);
+    canvas.setActiveObject(c);
     saveState();
-    updateProperties();
 }
 
-function triggerImageUpload() {
-    document.getElementById("imageUploadInput").click();
+/*** IMAGE PLACEHOLDER (RECT) ***/
+function addImagePlaceholder() {
+    let frame = new fabric.Rect({
+        left: 100,
+        top: 100,
+        width: 200,
+        height: 200,
+        fill: "rgba(255,255,255,0.15)",
+        stroke: "#00aaff",
+        strokeWidth: 2
+    });
+
+    frame.field_type = "image";
+    frame.shape = "rect";
+    frame.customId = "field_" + Date.now();
+
+    canvas.add(frame);
+    canvas.setActiveObject(frame);
+    saveState();
 }
 
-document.getElementById("imageUploadInput").onchange = function(e) {
-    let file = e.target.files[0];
-    let reader = new FileReader();
+/*** IMAGE PLACEHOLDER (CIRCLE) ***/
+function addCirclePlaceholder() {
+    let c = new fabric.Circle({
+        left: 100,
+        top: 100,
+        radius: 80,
+        fill: "rgba(255,255,255,0.15)",
+        stroke: "#00aaff",
+        strokeWidth: 2
+    });
 
-    reader.onload = function(ev) {
-        fabric.Image.fromURL(ev.target.result, function(img) {
-            img.scaleToWidth(220);
+    c.field_type = "image";
+    c.shape = "circle";
+    c.customId = "field_" + Date.now();
 
-            // CIRCLE MASK
-            let circle = new fabric.Circle({
-                radius: img.getScaledWidth() / 2,
-                originX: "center",
-                originY: "center"
-            });
-            img.clipPath = circle;
-
-            img.customId = "field_" + Date.now();
-            canvas.add(img);
-            canvas.setActiveObject(img);
-            canvas.renderAll();
-            saveState();
-            updateProperties();
-        });
-    };
-
-    reader.readAsDataURL(file);
-};
-
-function deleteSelected() {
-    let obj = canvas.getActiveObject();
-    if (obj) {
-        canvas.remove(obj);
-        canvas.renderAll();
-        saveState();
-        refreshLayerList();
-    }
+    canvas.add(c);
+    canvas.setActiveObject(c);
+    saveState();
 }
 
 /***************************************
- * PROPERTY PANEL UPDATES
+ * PROPERTY PANEL
  ***************************************/
 canvas.on("selection:created", updateProperties);
 canvas.on("selection:updated", updateProperties);
@@ -170,73 +193,30 @@ function updateProperties() {
     document.getElementById("propName").value = o.customId || "";
     document.getElementById("propFontSize").value = o.fontSize || "";
     document.getElementById("propColor").value = o.fill || "#ffffff";
-    document.getElementById("propFontFamily").value = o.fontFamily || "Arial";
-    document.getElementById("propAlign").value = o.textAlign || "left";
 }
 
 function updateName() {
     let o = canvas.getActiveObject();
-    if (o) {
-        o.customId = document.getElementById("propName").value;
-        refreshLayerList();
-    }
-}
-
-function updateFontSize() {
-    let o = canvas.getActiveObject();
-    if (o && o.type === "textbox") {
-        o.fontSize = parseInt(document.getElementById("propFontSize").value);
-        canvas.renderAll();
-        saveState();
-    }
-}
-
-function updateColor() {
-    let o = canvas.getActiveObject();
-    if (o) {
-        o.set({ fill: document.getElementById("propColor").value });
-        canvas.renderAll();
-        saveState();
-    }
-}
-
-function updateFontFamily() {
-    let o = canvas.getActiveObject();
-    if (o && o.type === "textbox") {
-        o.set({ fontFamily: document.getElementById("propFontFamily").value });
-        canvas.renderAll();
-        saveState();
-    }
-}
-
-function updateAlign() {
-    let o = canvas.getActiveObject();
-    if (o && o.type === "textbox") {
-        o.set({ textAlign: document.getElementById("propAlign").value });
-        canvas.renderAll();
-        saveState();
-    }
+    if (o) o.customId = document.getElementById("propName").value;
+    refreshLayerList();
 }
 
 /***************************************
- * SMART GUIDES (CANVA)
+ * SMART GUIDES (CANVA-STYLE)
  ***************************************/
 canvas.on("object:moving", function(e) {
     let o = e.target;
-
     let cx = o.left + o.getScaledWidth() / 2;
     let cy = o.top + o.getScaledHeight() / 2;
 
     let centerX = canvas.getWidth() / 2;
     let centerY = canvas.getHeight() / 2;
 
-    // Snap vertical center
     if (Math.abs(cx - centerX) < snapTolerance) {
         o.left = centerX - o.getScaledWidth() / 2;
         drawVerticalGuide(centerX);
     } else clearVerticalGuide();
 
-    // Snap horizontal center
     if (Math.abs(cy - centerY) < snapTolerance) {
         o.top = centerY - o.getScaledHeight() / 2;
         drawHorizontalGuide(centerY);
@@ -281,23 +261,6 @@ function clearHorizontalGuide() {
     }
 }
 
-
-/***************************************
- * ZOOM CONTROLS
- ***************************************/
-function zoomIn() {
-    zoomLevel += 0.1;
-    canvas.setZoom(zoomLevel);
-    document.getElementById("zoomValue").innerText = Math.round(zoomLevel * 100) + "%";
-}
-
-function zoomOut() {
-    zoomLevel = Math.max(0.2, zoomLevel - 0.1);
-    canvas.setZoom(zoomLevel);
-    document.getElementById("zoomValue").innerText = Math.round(zoomLevel * 100) + "%";
-}
-
-
 /***************************************
  * LAYER PANEL
  ***************************************/
@@ -305,14 +268,14 @@ function refreshLayerList() {
     let list = document.getElementById("layerList");
     list.innerHTML = "";
 
-    canvas.getObjects().forEach(obj => {
+    canvas.getObjects().forEach(o => {
         let li = document.createElement("li");
-        li.innerText = obj.customId || "Unnamed";
+        li.innerText = o.customId;
 
         li.onclick = () => {
-            canvas.setActiveObject(obj);
-            canvas.renderAll();
+            canvas.setActiveObject(o);
             updateProperties();
+            canvas.renderAll();
         };
 
         list.appendChild(li);
@@ -323,13 +286,14 @@ function refreshLayerList() {
  * UNDO / REDO
  ***************************************/
 function saveState() {
-    undoStack.push(canvas.toJSON(["customId"]));
+    undoStack.push(canvas.toJSON(["customId", "field_type", "shape"]));
 }
 
 function undo() {
     if (!undoStack.length) return;
+
     let state = undoStack.pop();
-    redoStack.push(canvas.toJSON(["customId"]));
+    redoStack.push(canvas.toJSON(["customId", "field_type", "shape"]));
 
     canvas.loadFromJSON(state, () => {
         canvas.renderAll();
@@ -339,8 +303,9 @@ function undo() {
 
 function redo() {
     if (!redoStack.length) return;
+
     let state = redoStack.pop();
-    undoStack.push(canvas.toJSON(["customId"]));
+    undoStack.push(canvas.toJSON(["customId", "field_type", "shape"]));
 
     canvas.loadFromJSON(state, () => {
         canvas.renderAll();
@@ -349,81 +314,33 @@ function redo() {
 }
 
 /***************************************
- * LOCK / UNLOCK / HIDE / SHOW
- ***************************************/
-function lockSelected() {
-    let obj = canvas.getActiveObject();
-    if (!obj) return;
-
-    obj.lockMovementX = true;
-    obj.lockMovementY = true;
-    obj.lockRotation = true;
-    obj.lockScalingX = true;
-    obj.lockScalingY = true;
-}
-
-function unlockSelected() {
-    let obj = canvas.getActiveObject();
-    if (!obj) return;
-
-    obj.lockMovementX = false;
-    obj.lockMovementY = false;
-    obj.lockRotation = false;
-    obj.lockScalingX = false;
-    obj.lockScalingY = false;
-}
-
-function hideSelected() {
-    let obj = canvas.getActiveObject();
-    if (obj) {
-        obj.visible = false;
-        canvas.renderAll();
-    }
-}
-
-function showAll() {
-    canvas.getObjects().forEach(o => o.visible = true);
-    canvas.renderAll();
-}
-
-/***************************************
  * SAVE TEMPLATE TO BACKEND
  ***************************************/
 function saveTemplate() {
     let objs = canvas.getObjects().map((o, i) => ({
-        field_name: o.customId || `field_${i+1}`,
-        field_type:
-            o.type === "textbox" ? "text" :
-            o.type === "image"   ? "image" :
-            "shape",
-
+        field_name: o.customId,
+        field_type: o.field_type,
+        shape: o.shape,
         x: Math.round(o.left),
         y: Math.round(o.top),
-
         width: o.getScaledWidth ? Math.round(o.getScaledWidth()) : null,
         height: o.getScaledHeight ? Math.round(o.getScaledHeight()) : null,
-
         font_size: o.fontSize || null,
         color: o.fill || null,
         font_family: o.fontFamily || null,
-        align: o.textAlign || null,
-
-        shape: o.type === "circle" ? "circle" :
-               o.type === "rect"   ? "rect" : null
+        align: o.textAlign || null
     }));
 
     fetch(`/admin/template/${TEMPLATE_ID}/builder`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fields: objs })
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({fields: objs})
     })
     .then(r => r.json())
     .then(res => {
-        if (res.status === "ok") {
-            alert("Template Saved!");
-        } else {
-            alert(res.message || "Failed to save");
-        }
+        if (res.status === "ok") alert("Template saved!");
+        else alert("Error saving template");
     });
 }
+
 

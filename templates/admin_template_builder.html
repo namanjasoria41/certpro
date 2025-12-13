@@ -36,9 +36,13 @@
     </div>
 
 
-    <!-- Right Properties Panel -->
+    <!-- Properties Panel -->
     <div class="builder-properties">
-        <h5>Properties</h5>
+
+        <h5>Field Properties</h5>
+
+        <label>Field Name</label>
+        <input id="propName" onchange="updateName()">
 
         <label>Font Size</label>
         <input type="number" id="propFontSize" onchange="updateFontSize()">
@@ -72,11 +76,12 @@
 
 {% block extra_js %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js"></script>
+
 <script>
     const TEMPLATE_ID = {{ template.id }};
     const TEMPLATE_URL = "{{ template_image_url }}";
     const EXISTING_FIELDS = {{ fields | tojson }};
 </script>
+
 <script src="{{ url_for('static', filename='js/builder.js') }}"></script>
 {% endblock %}
-

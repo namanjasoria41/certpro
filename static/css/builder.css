@@ -1,1 +1,195 @@
+/* ---------------------------------------------------
+   BUILDER LAYOUT
+--------------------------------------------------- */
+
+.builder-container {
+    display: grid;
+    grid-template-columns: 80px 1fr 260px;
+    grid-gap: 0;
+    height: calc(100vh - 120px);
+    width: 100%;
+    margin-top: 20px;
+    overflow: hidden;
+}
+
+/* ---------------------------------------------------
+   LEFT TOOLBAR
+--------------------------------------------------- */
+
+.builder-toolbar {
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(12px);
+    padding: 15px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tool-btn {
+    width: 100%;
+    padding: 10px 0;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    font-weight: 500;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.tool-btn:hover {
+    background: rgba(255,255,255,0.25);
+}
+
+.delete-btn {
+    background: rgba(255,40,40,0.3);
+}
+
+.delete-btn:hover {
+    background: rgba(255,40,40,0.5);
+}
+
+
+/* ---------------------------------------------------
+   CANVAS AREA
+--------------------------------------------------- */
+
+.builder-canvas-wrapper {
+    position: relative;
+    overflow: auto;
+    background: #0a0a0a;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#builderCanvasContainer {
+    position: relative;
+    margin: auto;
+    padding: 20px;
+}
+
+#builderCanvas {
+    border: 1px dashed rgba(255,255,255,0.25);
+    background: transparent;
+}
+
+
+/* ---------------------------------------------------
+   ZOOM CONTROLS
+--------------------------------------------------- */
+
+.zoom-controls {
+    position: absolute;
+    bottom: 18px;
+    right: 25px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255,255,255,0.12);
+    padding: 8px 14px;
+    border-radius: 10px;
+    backdrop-filter: blur(10px);
+}
+
+.zoom-controls button {
+    background: rgba(255,255,255,0.22);
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    color: white;
+    font-weight: 700;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.zoom-controls button:hover {
+    background: rgba(255,255,255,0.35);
+}
+
+#zoomValue {
+    color: #fff;
+    font-weight: 500;
+}
+
+
+/* ---------------------------------------------------
+   RIGHT PROPERTIES PANEL
+--------------------------------------------------- */
+
+.builder-properties {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 20px;
+    backdrop-filter: blur(10px);
+    border-left: 1px solid rgba(255,255,255,0.1);
+    overflow-y: auto;
+}
+
+.builder-properties h5 {
+    color: white;
+    margin-bottom: 20px;
+}
+
+.builder-properties label {
+    display: block;
+    margin-top: 12px;
+    margin-bottom: 3px;
+    color: #ddd;
+    font-size: 14px;
+}
+
+.builder-properties input,
+.builder-properties select {
+    width: 100%;
+    padding: 8px;
+    background: rgba(255,255,255,0.15);
+    border: none;
+    color: #fff;
+    border-radius: 6px;
+    outline: none;
+}
+
+.builder-properties input[type="color"] {
+    padding: 2px;
+    height: 40px;
+}
+
+.save-btn {
+    margin-top: 20px;
+    width: 100%;
+    padding: 10px 0;
+    background: #007bff;
+    border: none;
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: 0.2s;
+}
+
+.save-btn:hover {
+    background: #0a5fd0;
+}
+
+
+/* ---------------------------------------------------
+   SCROLLBARS (Dark Theme)
+--------------------------------------------------- */
+
+.builder-canvas-wrapper::-webkit-scrollbar,
+.builder-properties::-webkit-scrollbar {
+    width: 8px;
+}
+
+.builder-canvas-wrapper::-webkit-scrollbar-track,
+.builder-properties::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.05);
+}
+
+.builder-canvas-wrapper::-webkit-scrollbar-thumb,
+.builder-properties::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.25);
+    border-radius: 6px;
+}
 

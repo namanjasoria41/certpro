@@ -47,6 +47,9 @@ from models import (
 import razorpay
 from razorpay.errors import SignatureVerificationError
 
+from weasyprint import HTML
+import io
+
 # --------------------------------------------------------------------------
 # App / DB / Login setup
 # --------------------------------------------------------------------------
@@ -1417,11 +1420,67 @@ def _generate_final_certificate_from_preview(user, template, preview_info):
     return filename
 
 
+@app.route("/template/<int:template_id>/pdf", methods=["POST"])
+@login_required
+def generate_pdf(template_id):
+    template = Template.query.get_or_404(template_id)
+    fields = TemplateField.query.filter_by(template_id=template.id).all()
+
+    data = request.json
+    if not data:
+        return {"status": "error", "message": "Missing JSON"}, 400
+
+    field_values = data.get("values", {})
+
+    # Load background (same as PNG system)
+    base_src = _ensure_template_image_exists_or_redirect(template)
+    if not base_src:
+        return {"status": "error", "message": "Base image missing"}, 400
+
+    from PIL import Image
+    if base_src.startswith("/template_image/"):
+        im = open_template_image_for_pil(template)
+    else:
+        im = Image.open(base_src)
+    width, height = im.size
+
+    html_fields = []
+    for f in fields:
+        key = f.name
+        value = field_values.get(key, "")
+        html_fields.append({
+            "value": value,
+            "x": f.x,
+            "y": f.y,
+            "font_size": f.font_size or 24,
+            "color": f.color or "#000",
+            "font_family": f.font_family or "default",
+            "align": f.align or "left"
+        })
+
+    html = render_template("certificate_pdf.html",
+                           width=width,
+                           height=height,
+                           background=base_src,
+                           fields=html_fields)
+
+    pdf_content = HTML(string=html, base_url=request.host_url).write_pdf()
+
+    fname = f"certificate_{current_user.id}_{template.id}_{int(datetime.utcnow().timestamp())}.pdf"
+    path = os.path.join(Config.GENERATED_FOLDER, fname)
+
+    with open(path, "wb") as f:
+        f.write(pdf_content)
+
+    return {"status": "ok", "url": url_for("view_certificate", filename=fname)}
+
+
 # --------------------------------------------------------------------------
 # Main
 # --------------------------------------------------------------------------
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 

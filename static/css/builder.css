@@ -1,73 +1,67 @@
-/* ---------------------------------------------------
-   BUILDER LAYOUT
---------------------------------------------------- */
-
+/* ---------------------------------------------
+   BUILDER 3-COLUMN GRID LAYOUT
+--------------------------------------------- */
 .builder-container {
     display: grid;
-    grid-template-columns: 80px 1fr 260px;
+    grid-template-columns: 90px 1fr 280px;
     grid-gap: 0;
     height: calc(100vh - 120px);
-    width: 100%;
     margin-top: 20px;
     overflow: hidden;
 }
 
-/* ---------------------------------------------------
+/* ---------------------------------------------
    LEFT TOOLBAR
---------------------------------------------------- */
-
+--------------------------------------------- */
 .builder-toolbar {
-    background: rgba(255, 255, 255, 0.06);
-    backdrop-filter: blur(12px);
+    background: rgba(255,255,255,0.07);
+    backdrop-filter: blur(10px);
     padding: 15px 10px;
     display: flex;
     flex-direction: column;
     gap: 12px;
-    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    border-right: 1px solid rgba(255,255,255,0.15);
 }
 
 .tool-btn {
     width: 100%;
-    padding: 10px 0;
+    padding: 11px 0;
     border: none;
     border-radius: 8px;
-    background: rgba(255,255,255,0.15);
-    color: #fff;
-    font-weight: 500;
+    background: rgba(255,255,255,0.18);
+    color: white;
+    font-weight: 600;
     cursor: pointer;
-    transition: 0.2s;
+    transition: 0.25s;
 }
 
 .tool-btn:hover {
-    background: rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.30);
 }
 
 .delete-btn {
-    background: rgba(255,40,40,0.3);
+    background: rgba(255,50,50,0.4);
 }
 
 .delete-btn:hover {
-    background: rgba(255,40,40,0.5);
+    background: rgba(255,50,50,0.6);
 }
 
-
-/* ---------------------------------------------------
+/* ---------------------------------------------
    CANVAS AREA
---------------------------------------------------- */
-
+--------------------------------------------- */
 .builder-canvas-wrapper {
     position: relative;
+    background: #090909;
     overflow: auto;
-    background: #0a0a0a;
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
 #builderCanvasContainer {
-    position: relative;
-    margin: auto;
     padding: 20px;
+    position: relative;
 }
 
 #builderCanvas {
@@ -75,66 +69,55 @@
     background: transparent;
 }
 
-
-/* ---------------------------------------------------
+/* ---------------------------------------------
    ZOOM CONTROLS
---------------------------------------------------- */
-
+--------------------------------------------- */
 .zoom-controls {
     position: absolute;
-    bottom: 18px;
-    right: 25px;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(255,255,255,0.15);
+    padding: 10px 15px;
+    border-radius: 12px;
     display: flex;
-    align-items: center;
     gap: 10px;
-    background: rgba(255,255,255,0.12);
-    padding: 8px 14px;
-    border-radius: 10px;
     backdrop-filter: blur(10px);
 }
 
 .zoom-controls button {
-    background: rgba(255,255,255,0.22);
+    background: rgba(255,255,255,0.25);
     border: none;
-    padding: 6px 14px;
+    padding: 5px 13px;
     border-radius: 6px;
     color: white;
-    font-weight: 700;
+    font-size: 18px;
     cursor: pointer;
-    transition: 0.2s;
-}
-
-.zoom-controls button:hover {
-    background: rgba(255,255,255,0.35);
 }
 
 #zoomValue {
-    color: #fff;
-    font-weight: 500;
+    color: white;
+    font-weight: 600;
 }
 
-
-/* ---------------------------------------------------
+/* ---------------------------------------------
    RIGHT PROPERTIES PANEL
---------------------------------------------------- */
-
+--------------------------------------------- */
 .builder-properties {
-    background: rgba(255, 255, 255, 0.05);
-    padding: 20px;
-    backdrop-filter: blur(10px);
-    border-left: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.06);
+    padding: 22px;
     overflow-y: auto;
+    backdrop-filter: blur(12px);
+    border-left: 1px solid rgba(255,255,255,0.15);
 }
 
 .builder-properties h5 {
     color: white;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
 }
 
 .builder-properties label {
-    display: block;
-    margin-top: 12px;
-    margin-bottom: 3px;
+    margin-top: 14px;
+    margin-bottom: 6px;
     color: #ddd;
     font-size: 14px;
 }
@@ -142,57 +125,70 @@
 .builder-properties input,
 .builder-properties select {
     width: 100%;
-    padding: 8px;
-    background: rgba(255,255,255,0.15);
+    padding: 9px;
+    background: rgba(255,255,255,0.18);
     border: none;
-    color: #fff;
-    border-radius: 6px;
-    outline: none;
+    border-radius: 7px;
+    color: white;
 }
 
 .builder-properties input[type="color"] {
-    padding: 2px;
+    padding: 0;
     height: 40px;
 }
 
+/* Save button */
 .save-btn {
-    margin-top: 20px;
+    margin-top: 25px;
     width: 100%;
-    padding: 10px 0;
+    padding: 11px 0;
     background: #007bff;
     border: none;
-    color: white;
     border-radius: 8px;
-    cursor: pointer;
+    color: white;
     font-weight: 600;
-    transition: 0.2s;
+    cursor: pointer;
+    transition: .25s;
 }
 
 .save-btn:hover {
     background: #0a5fd0;
 }
 
+/* ---------------------------------------------
+   LAYER LIST (Canva-style)
+--------------------------------------------- */
+.layer-list {
+    list-style: none;
+    margin-top: 15px;
+    max-height: 220px;
+    overflow-y: auto;
+    padding-left: 0;
+}
 
-/* ---------------------------------------------------
-   SCROLLBARS (Dark Theme)
---------------------------------------------------- */
+.layer-list li {
+    padding: 9px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 7px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: 0.2s;
+    color: white;
+}
 
+.layer-list li:hover {
+    background: rgba(255,255,255,0.20);
+}
+
+/* Scrollbars */
 .builder-canvas-wrapper::-webkit-scrollbar,
 .builder-properties::-webkit-scrollbar {
     width: 8px;
 }
 
-.builder-canvas-wrapper::-webkit-scrollbar-track,
-.builder-properties::-webkit-scrollbar-track {
-    background: rgba(255,255,255,0.05);
-}
-
 .builder-canvas-wrapper::-webkit-scrollbar-thumb,
 .builder-properties::-webkit-scrollbar-thumb {
     background: rgba(255,255,255,0.25);
-    border-radius: 6px;
+    border-radius: 8px;
 }
 
-#propName {
-    margin-bottom: 10px;
-}

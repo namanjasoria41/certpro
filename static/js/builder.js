@@ -1,112 +1,84 @@
-/***********************************************
- * FABRIC.JS CANVA-STYLE TEMPLATE BUILDER
- ***********************************************/
+/*************************************************
+ * SIMPLE MOBILE BUILDER — Template Editor
+ * Lightweight, Fast, Touch-Friendly
+ *************************************************/
 
 let canvas = new fabric.Canvas("builderCanvas", {
-    preserveObjectStacking: true,
-    selection: true
+    selection: true,
+    preserveObjectStacking: true
 });
 
-let zoomLevel = 1;
-let undoStack = [];
-let redoStack = [];
+let activeObj = null;
 
-let verticalGuide = null;
-let horizontalGuide = null;
-const snapTolerance = 6;
-
-/***************************************
- * LOAD BACKGROUND
- ***************************************/
-/***********************************************
- * LOAD BACKGROUND + AUTO-SCALE TEMPLATE
- ***********************************************/
+/*************************************************
+ * AUTO LOAD BACKGROUND
+ *************************************************/
 fabric.Image.fromURL(TEMPLATE_URL, function(img) {
-
-    const templateWidth = img.width;
-    const templateHeight = img.height;
-
-    // Set canvas to real size (for saving correct coordinates)
-    canvas.setWidth(templateWidth);
-    canvas.setHeight(templateHeight);
+    canvas.setWidth(img.width);
+    canvas.setHeight(img.height);
 
     img.set({ selectable: false, evented: false });
+
     canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
 
-    /** AUTO-SCALE TO FIT VIEW WINDOW **/
-    autoScaleCanvas(templateWidth, templateHeight);
-
-    drawgrid();
+    autoScaleCanvas();
     loadExistingFields();
 });
 
+/*************************************************
+ * AUTO SCALE FOR MOBILE VIEW
+ *************************************************/
+function autoScaleCanvas() {
+    const wrapper = document.querySelector(".builder-canvas-area");
 
-/***********************************************
- * GRID DRAWING (CANVA STYLE)
- ***********************************************/
-function drawGrid() {
-    const gridSize = 20; // pixels
+    const maxW = wrapper.clientWidth - 20;
+    const maxH = wrapper.clientHeight - 20;
 
-    const width = canvas.getWidth();
-    const height = canvas.getHeight();
+    const scale = Math.min(maxW / canvas.width, maxH / canvas.height);
 
-    for (let i = 0; i < width / gridSize; i++) {
-        canvas.add(new fabric.Line(
-            [i * gridSize, 0, i * gridSize, height],
-            {
-                stroke: "rgba(255,255,255,0.08)",
-                selectable: false,
-                evented: false
-            }
-        ));
-    }
-
-    for (let i = 0; i < height / gridSize; i++) {
-        canvas.add(new fabric.Line(
-            [0, i * gridSize, width, i * gridSize],
-            {
-                stroke: "rgba(255,255,255,0.08)",
-                selectable: false,
-                evented: false
-            }
-        ));
-    }
+    canvas.setZoom(scale);
+    canvas.setViewportTransform([
+        scale, 0,
+        0, scale,
+        (maxW - canvas.width * scale) / 2,
+        (maxH - canvas.height * scale) / 2
+    ]);
 }
 
-/***************************************
- * LOAD EXISTING FIELDS FROM DATABASE
- ***************************************/
+/*************************************************
+ * LOAD EXISTING FIELDS
+ *************************************************/
 function loadExistingFields() {
     EXISTING_FIELDS.forEach(f => {
-        let obj;
+        let o = null;
 
         if (f.field_type === "text") {
-            obj = new fabric.Textbox(f.field_name || f.name, {
+            o = new fabric.Textbox(f.field_name, {
                 left: f.x,
                 top: f.y,
-                fontSize: f.font_size,
-                fill: f.color,
-                fontFamily: f.font_family,
+                fontSize: f.font_size || 32,
+                fill: f.color || "#ffffff",
+                fontFamily: f.font_family || "Arial",
                 textAlign: f.align || "left"
             });
         }
 
         else if (f.field_type === "image") {
             if (f.shape === "circle") {
-                obj = new fabric.Circle({
+                o = new fabric.Circle({
                     left: f.x,
                     top: f.y,
-                    radius: f.width / 2,
+                    radius: (f.width || 100) / 2,
                     fill: "rgba(255,255,255,0.15)",
                     stroke: "#00aaff",
                     strokeWidth: 2
                 });
             } else {
-                obj = new fabric.Rect({
+                o = new fabric.Rect({
                     left: f.x,
                     top: f.y,
-                    width: f.width,
-                    height: f.height,
+                    width: f.width || 100,
+                    height: f.height || 100,
                     fill: "rgba(255,255,255,0.15)",
                     stroke: "#00aaff",
                     strokeWidth: 2
@@ -114,22 +86,24 @@ function loadExistingFields() {
             }
         }
 
-        obj.customId = f.field_name || f.name;
-        obj.field_type = f.field_type;
-        obj.shape = f.shape;
+        if (!o) return;
 
-        canvas.add(obj);
+        o.customId = f.field_name;
+        o.field_type = f.field_type;
+        o.shape = f.shape;
+
+        canvas.add(o);
     });
 
+    refreshLayers();
     canvas.renderAll();
-    refreshLayerList();
 }
 
-/***************************************
- * TOOLBAR ACTIONS
- ***************************************/
+/*************************************************
+ * BASIC OBJECT CREATION
+ *************************************************/
 function addText() {
-    let t = new fabric.Textbox("New Field", {
+    let t = new fabric.Textbox("New Text", {
         left: 60,
         top: 60,
         fontSize: 32,
@@ -140,35 +114,32 @@ function addText() {
     t.field_type = "text";
 
     canvas.add(t);
-    canvas.setActiveObject(t);
-    saveState();
-    updateProperties();
+    setActive(t);
 }
 
-function addRectangle() {
+function addImagePlaceholder() {
     let r = new fabric.Rect({
         left: 80,
         top: 80,
-        width: 200,
-        height: 80,
+        width: 140,
+        height: 140,
         fill: "rgba(255,255,255,0.15)",
         stroke: "#00aaff",
         strokeWidth: 2
     });
 
     r.customId = "field_" + Date.now();
-    r.field_type = "shape";
+    r.field_type = "image";
     r.shape = "rect";
 
     canvas.add(r);
-    canvas.setActiveObject(r);
-    saveState();
+    setActive(r);
 }
 
-function addCircle() {
+function addCirclePlaceholder() {
     let c = new fabric.Circle({
-        left: 120,
-        top: 120,
+        left: 100,
+        top: 100,
         radius: 60,
         fill: "rgba(255,255,255,0.15)",
         stroke: "#00aaff",
@@ -176,193 +147,99 @@ function addCircle() {
     });
 
     c.customId = "field_" + Date.now();
-    c.field_type = "shape";
-    c.shape = "circle";
-
-    canvas.add(c);
-    canvas.setActiveObject(c);
-    saveState();
-}
-
-/*** IMAGE PLACEHOLDER (RECT) ***/
-function addImagePlaceholder() {
-    let frame = new fabric.Rect({
-        left: 100,
-        top: 100,
-        width: 200,
-        height: 200,
-        fill: "rgba(255,255,255,0.15)",
-        stroke: "#00aaff",
-        strokeWidth: 2
-    });
-
-    frame.field_type = "image";
-    frame.shape = "rect";
-    frame.customId = "field_" + Date.now();
-
-    canvas.add(frame);
-    canvas.setActiveObject(frame);
-    saveState();
-}
-
-/*** IMAGE PLACEHOLDER (CIRCLE) ***/
-function addCirclePlaceholder() {
-    let c = new fabric.Circle({
-        left: 100,
-        top: 100,
-        radius: 80,
-        fill: "rgba(255,255,255,0.15)",
-        stroke: "#00aaff",
-        strokeWidth: 2
-    });
-
     c.field_type = "image";
     c.shape = "circle";
-    c.customId = "field_" + Date.now();
 
     canvas.add(c);
-    canvas.setActiveObject(c);
-    saveState();
+    setActive(c);
 }
 
-/***************************************
- * PROPERTY PANEL
- ***************************************/
-canvas.on("selection:created", updateProperties);
-canvas.on("selection:updated", updateProperties);
+/*************************************************
+ * ACTIVE SELECTION HANDLER
+ *************************************************/
+canvas.on("selection:created", handleSelection);
+canvas.on("selection:updated", handleSelection);
 
-function updateProperties() {
-    let o = canvas.getActiveObject();
+function handleSelection() {
+    const o = canvas.getActiveObject();
+    activeObj = o;
+    updatePropertiesPanel(o);
+}
+
+/*************************************************
+ * PROPERTY PANEL UPDATE
+ *************************************************/
+function updatePropertiesPanel(o) {
     if (!o) return;
 
+    // For property drawer:
     document.getElementById("propName").value = o.customId || "";
     document.getElementById("propFontSize").value = o.fontSize || "";
     document.getElementById("propColor").value = o.fill || "#ffffff";
 }
 
+/*************************************************
+ * PROPERTY CHANGES
+ *************************************************/
 function updateName() {
-    let o = canvas.getActiveObject();
-    if (o) o.customId = document.getElementById("propName").value;
-    refreshLayerList();
-}
-
-/***************************************
- * SMART GUIDES (CANVA-STYLE)
- ***************************************/
-canvas.on("object:moving", function(e) {
-    let o = e.target;
-    let cx = o.left + o.getScaledWidth() / 2;
-    let cy = o.top + o.getScaledHeight() / 2;
-
-    let centerX = canvas.getWidth() / 2;
-    let centerY = canvas.getHeight() / 2;
-
-    if (Math.abs(cx - centerX) < snapTolerance) {
-        o.left = centerX - o.getScaledWidth() / 2;
-        drawVerticalGuide(centerX);
-    } else clearVerticalGuide();
-
-    if (Math.abs(cy - centerY) < snapTolerance) {
-        o.top = centerY - o.getScaledHeight() / 2;
-        drawHorizontalGuide(centerY);
-    } else clearHorizontalGuide();
-});
-
-function drawVerticalGuide(x) {
-    if (!verticalGuide) {
-        verticalGuide = new fabric.Line([x, 0, x, canvas.getHeight()], {
-            stroke: "rgba(0,150,255,0.7)",
-            strokeWidth: 1.5,
-            selectable: false,
-            evented: false
-        });
-        canvas.add(verticalGuide);
+    if (activeObj) {
+        activeObj.customId = document.getElementById("propName").value;
+        refreshLayers();
     }
 }
 
-function drawHorizontalGuide(y) {
-    if (!horizontalGuide) {
-        horizontalGuide = new fabric.Line([0, y, canvas.getWidth(), y], {
-            stroke: "rgba(0,150,255,0.7)",
-            strokeWidth: 1.5,
-            selectable: false,
-            evented: false
-        });
-        canvas.add(horizontalGuide);
+function updateFontSize() {
+    if (activeObj && activeObj.type === "textbox") {
+        activeObj.set("fontSize", parseInt(document.getElementById("propFontSize").value));
+        canvas.renderAll();
     }
 }
 
-function clearVerticalGuide() {
-    if (verticalGuide) {
-        canvas.remove(verticalGuide);
-        verticalGuide = null;
+function updateColor() {
+    if (activeObj) {
+        activeObj.set("fill", document.getElementById("propColor").value);
+        canvas.renderAll();
     }
 }
 
-function clearHorizontalGuide() {
-    if (horizontalGuide) {
-        canvas.remove(horizontalGuide);
-        horizontalGuide = null;
-    }
-}
-
-/***************************************
+/*************************************************
  * LAYER PANEL
- ***************************************/
-function refreshLayerList() {
-    let list = document.getElementById("layerList");
+ *************************************************/
+function refreshLayers() {
+    const list = document.getElementById("layerList");
     list.innerHTML = "";
 
     canvas.getObjects().forEach(o => {
         let li = document.createElement("li");
         li.innerText = o.customId;
-
-        li.onclick = () => {
-            canvas.setActiveObject(o);
-            updateProperties();
-            canvas.renderAll();
-        };
-
+        li.onclick = () => setActive(o);
         list.appendChild(li);
     });
 }
 
-/***************************************
- * UNDO / REDO
- ***************************************/
-function saveState() {
-    undoStack.push(canvas.toJSON(["customId", "field_type", "shape"]));
+function setActive(o) {
+    canvas.setActiveObject(o);
+    activeObj = o;
+    updatePropertiesPanel(o);
+    canvas.renderAll();
 }
 
-function undo() {
-    if (!undoStack.length) return;
-
-    let state = undoStack.pop();
-    redoStack.push(canvas.toJSON(["customId", "field_type", "shape"]));
-
-    canvas.loadFromJSON(state, () => {
-        canvas.renderAll();
-        refreshLayerList();
-    });
+/*************************************************
+ * SLIDE-UP DRAWER FUNCTIONS
+ *************************************************/
+function toggleProperties() {
+    document.getElementById("propertiesPanel").classList.toggle("open");
 }
 
-function redo() {
-    if (!redoStack.length) return;
-
-    let state = redoStack.pop();
-    undoStack.push(canvas.toJSON(["customId", "field_type", "shape"]));
-
-    canvas.loadFromJSON(state, () => {
-        canvas.renderAll();
-        refreshLayerList();
-    });
+function toggleLayers() {
+    document.getElementById("layersPanel").classList.toggle("open");
 }
 
-/***************************************
- * SAVE TEMPLATE TO BACKEND
- ***************************************/
+/*************************************************
+ * SAVE TEMPLATE
+ *************************************************/
 function saveTemplate() {
-    let objs = canvas.getObjects().map((o, i) => ({
+    const objects = canvas.getObjects().map(o => ({
         field_name: o.customId,
         field_type: o.field_type,
         shape: o.shape,
@@ -373,82 +250,21 @@ function saveTemplate() {
         font_size: o.fontSize || null,
         color: o.fill || null,
         font_family: o.fontFamily || null,
-        align: o.textAlign || null
+        align: o.textAlign || "left"
     }));
 
     fetch(`/admin/template/${TEMPLATE_ID}/builder`, {
         method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({fields: objs})
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ fields: objects })
     })
     .then(r => r.json())
     .then(res => {
-        if (res.status === "ok") alert("Template saved!");
-        else alert("Error saving template");
+        if (res.status === "ok") {
+            alert("Template Saved Successfully!");
+        } else {
+            alert("Failed to save template");
+        }
     });
 }
 
-function autoScaleCanvas(templateWidth, templateHeight) {
-    const wrapper = document.querySelector(".builder-canvas-wrapper");
-
-    const maxW = wrapper.clientWidth - 40;   // padding
-    const maxH = wrapper.clientHeight - 40;
-
-    // Compute scale ratio to fit template inside
-    let scale = Math.min(
-        maxW / templateWidth,
-        maxH / templateHeight
-    );
-
-    // Prevent overscaling beyond 100%
-    scale = Math.min(scale, 1);
-
-    // Apply scaling
-    canvas.setZoom(scale);
-
-    // Center canvas inside wrapper
-    canvas.setViewportTransform([
-        scale, 0, 0,
-        scale,
-        (maxW - templateWidth * scale) / 2,
-        (maxH - templateHeight * scale) / 2
-    ]);
-
-    document.getElementById("zoomValue").innerText = Math.round(scale * 100) + "%";
-
-    // Store as starting zoom
-    zoomLevel = scale;
-}
-
-
-/***********************************************
- * GRID DRAWING (CANVA STYLE)
- ***********************************************/
-function drawGrid() {
-    const gridSize = 20; // pixels
-
-    const width = canvas.getWidth();
-    const height = canvas.getHeight();
-
-    for (let i = 0; i < width / gridSize; i++) {
-        canvas.add(new fabric.Line(
-            [i * gridSize, 0, i * gridSize, height],
-            {
-                stroke: "rgba(255,255,255,0.08)",
-                selectable: false,
-                evented: false
-            }
-        ));
-    }
-
-    for (let i = 0; i < height / gridSize; i++) {
-        canvas.add(new fabric.Line(
-            [0, i * gridSize, width, i * gridSize],
-            {
-                stroke: "rgba(255,255,255,0.08)",
-                selectable: false,
-                evented: false
-            }
-        ));
-    }
-}

@@ -31,6 +31,9 @@
 
     <!-- CANVAS AREA -->
     <div class="builder-canvas-wrapper">
+       <div id="horizontal-ruler" class="ruler ruler-horizontal"></div>
+       <div id="vertical-ruler" class="ruler ruler-vertical"></div>
+
         <div id="builderCanvasContainer">
             <canvas id="builderCanvas"></canvas>
         </div>
@@ -76,4 +79,5 @@
 
 <script src="{{ url_for('static', filename='js/builder.js') }}"></script>
 {% endblock %}
+
 

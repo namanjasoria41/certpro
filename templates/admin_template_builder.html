@@ -4,64 +4,89 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/builder.css') }}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 {% endblock %}
 
 {% block content %}
 
-<div class="builder-container">
+<div class="builder-wrapper">
 
-    <!-- LEFT TOOLBAR -->
-    <div class="builder-toolbar">
-        <button class="tool-btn" onclick="addText()">Text</button>
-        <button class="tool-btn" onclick="addImagePlaceholder()">Image Box</button>
-        <button class="tool-btn" onclick="addCirclePlaceholder()">Circle Image</button>
-        <button class="tool-btn" onclick="addRectangle()">Rect</button>
-        <button class="tool-btn" onclick="addCircle()">Circle</button>
-
-        <button class="tool-btn" onclick="undo()">Undo</button>
-        <button class="tool-btn" onclick="redo()">Redo</button>
-
-        <button class="tool-btn" onclick="lockSelected()">Lock</button>
-        <button class="tool-btn" onclick="unlockSelected()">Unlock</button>
-        <button class="tool-btn" onclick="hideSelected()">Hide</button>
-        <button class="tool-btn" onclick="showAll()">Show All</button>
-
-        <button class="tool-btn delete-btn" onclick="deleteSelected()">Delete</button>
+    <!-- TOP BAR (Mobile style) -->
+    <div class="builder-topbar">
+        <span class="builder-title">Editing: {{ template.name }}</span>
+        <button class="save-btn" onclick="saveTemplate()">
+            <i class="bi bi-check2-circle"></i> Save
+        </button>
     </div>
 
     <!-- CANVAS AREA -->
-    <div class="builder-canvas-wrapper">
-       <div id="horizontal-ruler" class="ruler ruler-horizontal"></div>
-       <div id="vertical-ruler" class="ruler ruler-vertical"></div>
-
-        <div id="builderCanvasContainer">
-            <canvas id="builderCanvas"></canvas>
-        </div>
-
-        <div class="zoom-controls">
-            <button onclick="zoomOut()">−</button>
-            <span id="zoomValue">100%</span>
-            <button onclick="zoomIn()">+</button>
-        </div>
+    <div class="builder-canvas-area">
+        <canvas id="builderCanvas"></canvas>
     </div>
 
-    <!-- RIGHT PANEL -->
-    <div class="builder-properties">
-        <h5>Field Properties</h5>
+    <!-- FLOATING TOOLS (Bottom toolbar mobile style) -->
+    <div class="builder-toolbar">
 
-        <label>Field Name</label>
-        <input id="propName" onchange="updateName()">
+        <button onclick="addText()" class="tool-btn">
+            <i class="bi bi-fonts"></i> <span>Text</span>
+        </button>
 
-        <label>Font Size</label>
-        <input id="propFontSize" type="number" onchange="updateFontSize()">
+        <button onclick="addImagePlaceholder()" class="tool-btn">
+            <i class="bi bi-image"></i> <span>Image</span>
+        </button>
 
-        <label>Color</label>
-        <input id="propColor" type="color" onchange="updateColor()">
+        <button onclick="addCirclePlaceholder()" class="tool-btn">
+            <i class="bi bi-record-circle"></i> <span>Circle</span>
+        </button>
 
-        <h5 class="mt-4">Layers</h5>
-        <ul id="layerList" class="layer-list"></ul>
+        <button onclick="toggleProperties()" class="tool-btn">
+            <i class="bi bi-sliders"></i> <span>Props</span>
+        </button>
 
-        <button class="save-btn" onclick="saveTemplate()">Save Template</button>
+        <button onclick="toggleLayers()" class="tool-btn">
+            <i class="bi bi-layers"></i> <span>Layers</span>
+        </button>
+
+    </div>
+
+    <!-- PROPERTY PANEL (Slide-up mobile drawer) -->
+    <div id="propertiesPanel" class="drawer-panel">
+
+        <div class="drawer-header">
+            <span>Properties</span>
+            <button class="close-drawer" onclick="toggleProperties()">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+
+        <div class="drawer-body">
+
+            <label>Field Name</label>
+            <input id="propName" class="drawer-input" onchange="updateName()">
+
+            <label>Font Size</label>
+            <input id="propFontSize" type="number" class="drawer-input" onchange="updateFontSize()">
+
+            <label>Color</label>
+            <input id="propColor" type="color" class="drawer-input" onchange="updateColor()">
+        </div>
+
+    </div>
+
+    <!-- LAYER PANEL (Slide-up mobile drawer) -->
+    <div id="layersPanel" class="drawer-panel">
+
+        <div class="drawer-header">
+            <span>Layers</span>
+            <button class="close-drawer" onclick="toggleLayers()">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+
+        <div class="drawer-body">
+            <ul id="layerList" class="layer-list"></ul>
+        </div>
+
     </div>
 
 </div>
@@ -79,5 +104,4 @@
 
 <script src="{{ url_for('static', filename='js/builder.js') }}"></script>
 {% endblock %}
-
 

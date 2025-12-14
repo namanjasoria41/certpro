@@ -11,49 +11,58 @@
 
 <div class="builder-wrapper">
 
-    <!-- TOP BAR (Mobile style) -->
+    <!-- TOP BAR -->
     <div class="builder-topbar">
         <span class="builder-title">Editing: {{ template.name }}</span>
+
         <button class="save-btn" onclick="saveTemplate()">
             <i class="bi bi-check2-circle"></i> Save
         </button>
     </div>
 
-    <!-- CANVAS AREA -->
+
+    <!-- CANVAS AREA (centered perfectly now) -->
     <div class="builder-canvas-area">
         <canvas id="builderCanvas"></canvas>
     </div>
 
-    <!-- FLOATING TOOLS (Bottom toolbar mobile style) -->
+
+    <!-- BOTTOM TOOLBAR -->
     <div class="builder-toolbar">
 
-        <button onclick="addText()" class="tool-btn">
-            <i class="bi bi-fonts"></i> <span>Text</span>
+        <button onclick="enableAddTextMode()" class="tool-btn">
+            <i class="bi bi-fonts"></i>
+            <span>Text</span>
         </button>
 
-        <button onclick="addImagePlaceholder()" class="tool-btn">
-            <i class="bi bi-image"></i> <span>Image</span>
+        <button onclick="enableAddImageMode()" class="tool-btn">
+            <i class="bi bi-image"></i>
+            <span>Rect</span>
         </button>
 
-        <button onclick="addCirclePlaceholder()" class="tool-btn">
-            <i class="bi bi-record-circle"></i> <span>Circle</span>
+        <button onclick="enableAddCircleImageMode()" class="tool-btn">
+            <i class="bi bi-record-circle"></i>
+            <span>Circle</span>
         </button>
 
         <button onclick="toggleProperties()" class="tool-btn">
-            <i class="bi bi-sliders"></i> <span>Props</span>
+            <i class="bi bi-sliders"></i>
+            <span>Props</span>
         </button>
 
         <button onclick="toggleLayers()" class="tool-btn">
-            <i class="bi bi-layers"></i> <span>Layers</span>
+            <i class="bi bi-layers"></i>
+            <span>Layers</span>
         </button>
 
     </div>
 
-    <!-- PROPERTY PANEL (Slide-up mobile drawer) -->
+
+    <!-- PROPERTIES PANEL (Slide-Up Drawer) -->
     <div id="propertiesPanel" class="drawer-panel">
 
         <div class="drawer-header">
-            <span>Properties</span>
+            <span>Field Properties</span>
             <button class="close-drawer" onclick="toggleProperties()">
                 <i class="bi bi-x-lg"></i>
             </button>
@@ -69,11 +78,14 @@
 
             <label>Color</label>
             <input id="propColor" type="color" class="drawer-input" onchange="updateColor()">
+
         </div>
 
     </div>
 
-    <!-- LAYER PANEL (Slide-up mobile drawer) -->
+
+
+    <!-- LAYERS PANEL (Slide-Up Drawer) -->
     <div id="layersPanel" class="drawer-panel">
 
         <div class="drawer-header">
@@ -93,7 +105,10 @@
 
 {% endblock %}
 
+
+
 {% block extra_js %}
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js"></script>
 
 <script>
@@ -103,5 +118,5 @@
 </script>
 
 <script src="{{ url_for('static', filename='js/builder.js') }}"></script>
-{% endblock %}
 
+{% endblock %}

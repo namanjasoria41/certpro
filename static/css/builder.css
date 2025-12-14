@@ -81,4 +81,39 @@
     margin-top: 20px;
 }
 
+/* Rulers */
+.ruler {
+    position: absolute;
+    background: #222;
+    z-index: 20;
+    font-size: 10px;
+    color: #aaa;
+    user-select: none;
+}
+
+.ruler-horizontal {
+    top: 0;
+    left: 40px;
+    height: 20px;
+    width: calc(100% - 40px);
+    border-bottom: 1px solid #444;
+}
+
+.ruler-vertical {
+    top: 20px;
+    left: 0;
+    width: 40px;
+    height: calc(100% - 20px);
+    border-right: 1px solid #444;
+}
+
+.ruler-tick {
+    position: absolute;
+    background: #666;
+}
+
+.ruler-tick-major {
+    background: #aaa;
+}
+
 

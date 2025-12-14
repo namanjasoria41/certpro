@@ -36,8 +36,42 @@ fabric.Image.fromURL(TEMPLATE_URL, function(img) {
     /** AUTO-SCALE TO FIT VIEW WINDOW **/
     autoScaleCanvas(templateWidth, templateHeight);
 
+    drawgrid();
     loadExistingFields();
 });
+
+
+/***********************************************
+ * GRID DRAWING (CANVA STYLE)
+ ***********************************************/
+function drawGrid() {
+    const gridSize = 20; // pixels
+
+    const width = canvas.getWidth();
+    const height = canvas.getHeight();
+
+    for (let i = 0; i < width / gridSize; i++) {
+        canvas.add(new fabric.Line(
+            [i * gridSize, 0, i * gridSize, height],
+            {
+                stroke: "rgba(255,255,255,0.08)",
+                selectable: false,
+                evented: false
+            }
+        ));
+    }
+
+    for (let i = 0; i < height / gridSize; i++) {
+        canvas.add(new fabric.Line(
+            [0, i * gridSize, width, i * gridSize],
+            {
+                stroke: "rgba(255,255,255,0.08)",
+                selectable: false,
+                evented: false
+            }
+        ));
+    }
+}
 
 /***************************************
  * LOAD EXISTING FIELDS FROM DATABASE
@@ -387,3 +421,34 @@ function autoScaleCanvas(templateWidth, templateHeight) {
 }
 
 
+/***********************************************
+ * GRID DRAWING (CANVA STYLE)
+ ***********************************************/
+function drawGrid() {
+    const gridSize = 20; // pixels
+
+    const width = canvas.getWidth();
+    const height = canvas.getHeight();
+
+    for (let i = 0; i < width / gridSize; i++) {
+        canvas.add(new fabric.Line(
+            [i * gridSize, 0, i * gridSize, height],
+            {
+                stroke: "rgba(255,255,255,0.08)",
+                selectable: false,
+                evented: false
+            }
+        ));
+    }
+
+    for (let i = 0; i < height / gridSize; i++) {
+        canvas.add(new fabric.Line(
+            [0, i * gridSize, width, i * gridSize],
+            {
+                stroke: "rgba(255,255,255,0.08)",
+                selectable: false,
+                evented: false
+            }
+        ));
+    }
+}

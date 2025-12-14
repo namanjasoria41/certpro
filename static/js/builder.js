@@ -18,12 +18,23 @@ const snapTolerance = 6;
 /***************************************
  * LOAD BACKGROUND
  ***************************************/
+/***********************************************
+ * LOAD BACKGROUND + AUTO-SCALE TEMPLATE
+ ***********************************************/
 fabric.Image.fromURL(TEMPLATE_URL, function(img) {
-    canvas.setWidth(img.width);
-    canvas.setHeight(img.height);
+
+    const templateWidth = img.width;
+    const templateHeight = img.height;
+
+    // Set canvas to real size (for saving correct coordinates)
+    canvas.setWidth(templateWidth);
+    canvas.setHeight(templateHeight);
 
     img.set({ selectable: false, evented: false });
     canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
+
+    /** AUTO-SCALE TO FIT VIEW WINDOW **/
+    autoScaleCanvas(templateWidth, templateHeight);
 
     loadExistingFields();
 });
@@ -341,6 +352,38 @@ function saveTemplate() {
         if (res.status === "ok") alert("Template saved!");
         else alert("Error saving template");
     });
+}
+
+function autoScaleCanvas(templateWidth, templateHeight) {
+    const wrapper = document.querySelector(".builder-canvas-wrapper");
+
+    const maxW = wrapper.clientWidth - 40;   // padding
+    const maxH = wrapper.clientHeight - 40;
+
+    // Compute scale ratio to fit template inside
+    let scale = Math.min(
+        maxW / templateWidth,
+        maxH / templateHeight
+    );
+
+    // Prevent overscaling beyond 100%
+    scale = Math.min(scale, 1);
+
+    // Apply scaling
+    canvas.setZoom(scale);
+
+    // Center canvas inside wrapper
+    canvas.setViewportTransform([
+        scale, 0, 0,
+        scale,
+        (maxW - templateWidth * scale) / 2,
+        (maxH - templateHeight * scale) / 2
+    ]);
+
+    document.getElementById("zoomValue").innerText = Math.round(scale * 100) + "%";
+
+    // Store as starting zoom
+    zoomLevel = scale;
 }
 
 

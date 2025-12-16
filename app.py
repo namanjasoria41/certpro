@@ -1432,12 +1432,13 @@ def _generate_final_certificate_from_preview(user, template, preview_info):
     field_values = preview_info.get("field_values", {}) if isinstance(preview_info, dict) else {}
     asset_map = preview_info.get("asset_map", {}) if isinstance(preview_info, dict) else {}
 
-    base_image_src = _ensure_template_image_exists_or_redirect(template)
-    if not base_image_src:
-        raise RuntimeError("Template base image missing when generating final certificate.")
+    composed = compose_image_from_fields(
+    template,
+    fields,
+    values=field_values,
+    file_map=file_map
+)
 
-    fields = TemplateField.query.filter_by(template_id=template.id).all()
-    composed = compose_image_from_fields(base_image_src, fields, values=field_values, file_map=asset_map)
 
     generated_folder = getattr(Config, "GENERATED_FOLDER", "static/generated")
     os.makedirs(generated_folder, exist_ok=True)
@@ -1522,6 +1523,7 @@ def generate_pdf(template_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

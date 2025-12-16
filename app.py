@@ -1305,12 +1305,14 @@ def fill_template(template_id):
         # ----------------------------
         # BASE TEMPLATE IMAGE
         # ----------------------------
-       composed = compose_image_from_fields(
-    template,
-    fields,
-    values=field_values,
-    file_map=file_map
-)
+       try:
+    composed = compose_image_from_fields(
+        template,
+        fields,
+        values=field_values,
+        file_map=file_map
+    )
+
 
 
         except Exception:
@@ -1333,18 +1335,6 @@ def fill_template(template_id):
         # WALLET DEDUCTION + TRANSACTION LOGGING
         # ----------------------------
         try:
-            current_user.wallet_balance -= (template.price or 0)
-
-            transaction = Transaction(
-                user_id=current_user.id,
-                amount=template.price,
-                transaction_type="debit",
-                description=f"Certificate purchase - {template.name}",
-            )
-
-            db.session.add(transaction)
-            db.session.commit()
-
         except Exception:
             db.session.rollback()
             app.logger.exception("Failed to log transaction")
@@ -1392,12 +1382,16 @@ def preview_template(template_id):
             else:
                 field_values[key] = request.form.get(key, "")
 
-        composed = compose_image_from_fields(
+        fields = TemplateField.query.filter_by(template_id=template.id).all()
+        file_map = asset_map or {}
+
+    composed = compose_image_from_fields(
     template,
     fields,
     values=field_values,
     file_map=file_map
-)
+      )
+
 
         except Exception:
             app.logger.exception("Failed to compose preview image")
@@ -1496,7 +1490,7 @@ def generate_pdf(template_id):
     html = render_template("certificate_pdf.html",
                            width=width,
                            height=height,
-                           background=base_src,
+                           background=url_for("serve_template_image", template_id=template.id),
                            fields=html_fields)
 
     pdf_content = HTML(string=html, base_url=request.host_url).write_pdf()
@@ -1516,6 +1510,7 @@ def generate_pdf(template_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

@@ -1392,12 +1392,13 @@ def preview_template(template_id):
             else:
                 field_values[key] = request.form.get(key, "")
 
-        base_image_src = _ensure_template_image_exists_or_redirect(template)
-        if not base_image_src:
-            return redirect(url_for("admin_templates") if getattr(current_user, "is_admin", False) else url_for("index"))
+        composed = compose_image_from_fields(
+    template,
+    fields,
+    values=field_values,
+    file_map=file_map
+)
 
-        try:
-            composed = compose_image_from_fields(base_image_src, fields, values=field_values, file_map=file_map)
         except Exception:
             app.logger.exception("Failed to compose preview image")
             flash("Failed to create preview image.", "danger")
@@ -1521,6 +1522,7 @@ def generate_pdf(template_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

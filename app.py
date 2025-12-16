@@ -367,8 +367,7 @@ def register():
                 return redirect(url_for("login"))
 
         hashed_password = generate_password_hash(password)
-        try:
-            if not email:
+     if not email:
     email = f"{phone}@auto.bannerhub.local"
 
 user = User(
@@ -1284,21 +1283,19 @@ def fill_template(template_id):
 
         # ----------------------------
         # BASE TEMPLATE IMAGE
-        # ----------------------------
-       try:
+        # --------------------------
+try:
     composed = compose_image_from_fields(
         template,
         fields,
         values=field_values,
         file_map=file_map
     )
+except Exception:
+    app.logger.exception("Failed to compose certificate image")
+    flash("Failed to generate certificate image.", "danger")
+    return redirect(url_for("fill_template", template_id=template.id))
 
-
-
-        except Exception:
-            app.logger.exception("Failed to compose certificate image")
-            flash("Failed to generate certificate image.", "danger")
-            return redirect(url_for("fill_template", template_id=template.id))
 
         # ----------------------------
         # SAVE OUTPUT PNG
@@ -1364,19 +1361,18 @@ def preview_template(template_id):
 
         fields = TemplateField.query.filter_by(template_id=template.id).all()
         file_map = asset_map or {}
-
+try:
     composed = compose_image_from_fields(
-    template,
-    fields,
-    values=field_values,
-    file_map=file_map
-      )
+        template,
+        fields,
+        values=field_values,
+        file_map=file_map
+    )
+except Exception:
+    app.logger.exception("Failed to compose preview image")
+    flash("Failed to create preview image.", "danger")
+    return redirect(url_for("preview_template", template_id=template.id))
 
-
-        except Exception:
-            app.logger.exception("Failed to compose preview image")
-            flash("Failed to create preview image.", "danger")
-            return redirect(url_for("preview_template", template_id=template.id))
 
         os.makedirs(preview_folder, exist_ok=True)
         preview_filename = f"preview_{current_user.id}_{template.id}_{int(datetime.utcnow().timestamp())}.png"
@@ -1405,6 +1401,9 @@ def preview_template(template_id):
 def _generate_final_certificate_from_preview(user, template, preview_info):
     field_values = preview_info.get("field_values", {}) if isinstance(preview_info, dict) else {}
     asset_map = preview_info.get("asset_map", {}) if isinstance(preview_info, dict) else {}
+
+   fields = TemplateField.query.filter_by(template_id=template.id).all()
+   file_map = asset_map or {}
 
     composed = compose_image_from_fields(
     template,
@@ -1490,6 +1489,7 @@ def generate_pdf(template_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

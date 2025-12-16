@@ -368,7 +368,15 @@ def register():
 
         hashed_password = generate_password_hash(password)
         try:
-            user = User(email=email or None, phone=phone or None, password=hashed_password)
+            if not email:
+    email = f"{phone}@auto.bannerhub.local"
+
+user = User(
+    email=email,
+    phone=phone or None,
+    password=hashed_password
+)
+
         except TypeError:
             user = User(email=email or None, password=hashed_password)
             try:
@@ -1482,6 +1490,7 @@ def generate_pdf(template_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

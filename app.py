@@ -248,7 +248,8 @@ def _ensure_template_image_exists_or_redirect(template):
 
 
 # compose image: draw texts and paste uploaded images according to fields
-def compose_image_from_fields(base_image_path_or_url, fields, values=None, file_map=None):
+def compose_image_from_fields(template, fields, values=None, file_map=None):
+
     """
     base_image_path_or_url:
       - if startswith '/template_image/' or is URL, we need to load template image bytes from DB or external URL.
@@ -261,30 +262,9 @@ def compose_image_from_fields(base_image_path_or_url, fields, values=None, file_
     file_map = file_map or {}
 
     # detect whether base_image_path_or_url is a route (starts with /template_image/) else filesystem
-    if isinstance(base_image_path_or_url, str) and base_image_path_or_url.startswith("/template_image/"):
-        # extract id
-        try:
-            tid = int(base_image_path_or_url.split("/")[-1])
-            tpl = Template.query.get(tid)
-            if not tpl:
-                raise RuntimeError("Template not found")
-            # use DB bytes if available
-            if getattr(tpl, "image_data", None):
-                base_image = Image.open(BytesIO(tpl.image_data)).convert("RGBA")
-            elif tpl.image_url:
-                import requests
+     # ALWAYS load base image from template (DB-first)
+     base_image = open_template_image_for_pil(template)
 
-                resp = requests.get(tpl.image_url, timeout=5)
-                resp.raise_for_status()
-                base_image = Image.open(BytesIO(resp.content)).convert("RGBA")
-            else:
-                raise RuntimeError("No DB image or image_url available")
-        except Exception:
-            app.logger.exception("Failed to load template image from DB route")
-            raise
-    else:
-        # assume filesystem path
-        base_image = Image.open(base_image_path_or_url).convert("RGBA")
 
     draw = ImageDraw.Draw(base_image)
 
@@ -1552,6 +1532,7 @@ def generate_pdf(template_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

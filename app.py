@@ -1305,24 +1305,13 @@ def fill_template(template_id):
         # ----------------------------
         # BASE TEMPLATE IMAGE
         # ----------------------------
-        base_image_src = _ensure_template_image_exists_or_redirect(template)
-        if not base_image_src:
-            return redirect(
-                url_for("admin_templates") 
-                if getattr(current_user, "is_admin", False) 
-                else url_for("index")
-            )
+       composed = compose_image_from_fields(
+    template,
+    fields,
+    values=field_values,
+    file_map=file_map
+)
 
-        # ----------------------------
-        # COMPOSITE FINAL IMAGE
-        # ----------------------------
-        try:
-            composed = compose_image_from_fields(
-                base_image_src,
-                fields,
-                values=field_values,
-                file_map=file_map
-            )
 
         except Exception:
             app.logger.exception("Failed to compose certificate image")
@@ -1532,6 +1521,7 @@ def generate_pdf(template_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

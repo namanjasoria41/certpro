@@ -1150,13 +1150,9 @@ def fill_template(template_id):
     fields = TemplateField.query.filter_by(template_id=template.id).all()
 
     if request.method == "POST":
+        field_values = {}
+        file_map = {}
 
-
-
-        field_values = {}     # For text fields
-        file_map = {}         # For image fields
-
-        # Base64 cropping support added
         import base64, uuid
 
         for field in fields:
@@ -1164,36 +1160,24 @@ def fill_template(template_id):
             if not key:
                 continue
 
-            ftype = (getattr(field, "field_type", None) 
-                     or getattr(field, "type", None) 
+            ftype = (getattr(field, "field_type", None)
+                     or getattr(field, "type", None)
                      or "text").lower()
 
-            # ----------------------------
-            # TEXT FIELD
-            # ----------------------------
             if ftype == "text":
                 field_values[key] = request.form.get(key, "")
 
-            # ----------------------------
-            # IMAGE FIELD
-            # Supports: Base64 cropped OR direct upload
-            # ----------------------------
             elif ftype == "image":
-
-                # FIRST: Check if we received a CROPPED BASE64 STRING
                 base64_data = request.form.get(key, "")
 
                 if base64_data.startswith("data:image"):
                     try:
-                        # Extract Base64 payload
                         header, encoded = base64_data.split(",", 1)
                         img_bytes = base64.b64decode(encoded)
 
-                        # Save cropped output as PNG
-                        save_dir = getattr(
-                            Config,
-                            "TEMP_UPLOAD_FOLDER",
-                            os.path.join(getattr(Config, "PREVIEW_FOLDER", "static/previews"), "assets")
+                        save_dir = os.path.join(
+                            getattr(Config, "PREVIEW_FOLDER", "static/previews"),
+                            "assets"
                         )
                         os.makedirs(save_dir, exist_ok=True)
 
@@ -1204,71 +1188,48 @@ def fill_template(template_id):
                             f.write(img_bytes)
 
                         file_map[key] = filepath
-                        continue  # Move to next field
+                        continue
                     except Exception:
-                        app.logger.exception("Failed to decode cropped base64 image")
-                        flash(f"Failed to process cropped image for {key}.", "danger")
+                        flash("Invalid cropped image.", "danger")
                         return redirect(url_for("fill_template", template_id=template.id))
 
-                # SECOND: Handle normal file uploads (fallback)
                 uploaded = request.files.get(key)
                 if uploaded and uploaded.filename:
-                    if allowed_file(uploaded.filename):
-
-                        save_dir = getattr(
-                            Config,
-                            "TEMP_UPLOAD_FOLDER",
-                            os.path.join(getattr(Config, "PREVIEW_FOLDER", "static/previews"), "assets")
-                        )
-                        os.makedirs(save_dir, exist_ok=True)
-
-                        fname = secure_filename(f"{int(datetime.utcnow().timestamp())}_{uploaded.filename}")
-                        filepath = os.path.join(save_dir, fname)
-
-                        uploaded.save(filepath)
-                        file_map[key] = filepath
-                    else:
-                        flash(f"Uploaded file type not allowed for {key}.", "danger")
+                    if not allowed_file(uploaded.filename):
+                        flash("Invalid image type.", "danger")
                         return redirect(url_for("fill_template", template_id=template.id))
-                else:
-                    # No image provided
-                    file_map[key] = None
 
-        # ----------------------------
-        # BASE TEMPLATE IMAGE
-        # --------------------------
-try:
-    composed = compose_image_from_fields(
-        template,
-        fields,
-        values=field_values,
-        file_map=file_map
-    )
-except Exception:
-    app.logger.exception("Failed to compose certificate image")
-    flash("Failed to generate certificate image.", "danger")
-    return redirect(url_for("fill_template", template_id=template.id))
+                    save_dir = os.path.join(
+                        getattr(Config, "PREVIEW_FOLDER", "static/previews"),
+                        "assets"
+                    )
+                    os.makedirs(save_dir, exist_ok=True)
 
+                    fname = secure_filename(
+                        f"{int(datetime.utcnow().timestamp())}_{uploaded.filename}"
+                    )
+                    filepath = os.path.join(save_dir, fname)
+                    uploaded.save(filepath)
 
-        # ----------------------------
-        # SAVE OUTPUT PNG
-        # ----------------------------
+                    file_map[key] = filepath
+
+        try:
+            composed = compose_image_from_fields(
+                template,
+                fields,
+                values=field_values,
+                file_map=file_map
+            )
+        except Exception:
+            flash("Failed to generate certificate.", "danger")
+            return redirect(url_for("fill_template", template_id=template.id))
+
         generated_folder = getattr(Config, "GENERATED_FOLDER", "static/generated")
         os.makedirs(generated_folder, exist_ok=True)
 
         filename = f"certificate_{current_user.id}_{template.id}_{int(datetime.utcnow().timestamp())}.png"
         output_path = os.path.join(generated_folder, filename)
-
         composed.save(output_path)
-
-        # ----------------------------
-        # WALLET DEDUCTION + TRANSACTION LOGGING
-        # ----------------------------
-        try:
-        except Exception:
-            db.session.rollback()
-            app.logger.exception("Failed to log transaction")
-            flash("Certificate generated but transaction failed. Contact support.", "danger")
 
         flash("Certificate generated successfully!", "success")
         return redirect(url_for("view_certificate", filename=filename))
@@ -1288,6 +1249,7 @@ def preview_template(template_id):
     if request.method == "POST":
         field_values = {}
         file_map = {}
+
         preview_folder = getattr(Config, "PREVIEW_FOLDER", "static/previews")
         preview_assets = os.path.join(preview_folder, "assets")
         os.makedirs(preview_assets, exist_ok=True)
@@ -1296,49 +1258,51 @@ def preview_template(template_id):
             key = getattr(field, "field_name", None) or getattr(field, "name", None)
             if not key:
                 continue
-            ftype = (getattr(field, "field_type", None) or getattr(field, "type", None) or "text").lower()
+
+            ftype = (
+                getattr(field, "field_type", None)
+                or getattr(field, "type", None)
+                or "text"
+            ).lower()
+
             if ftype == "image":
                 uploaded = request.files.get(key)
                 if uploaded and uploaded.filename:
                     if not allowed_file(uploaded.filename):
-                        flash(f"Uploaded file for {key} not allowed type.", "danger")
+                        flash("Invalid image type.", "danger")
                         return redirect(url_for("preview_template", template_id=template.id))
-                    fname = secure_filename(f"{int(datetime.utcnow().timestamp())}_{uploaded.filename}")
+
+                    fname = secure_filename(
+                        f"{int(datetime.utcnow().timestamp())}_{uploaded.filename}"
+                    )
                     save_path = os.path.join(preview_assets, fname)
                     uploaded.save(save_path)
                     file_map[key] = save_path
-                else:
-                    file_map[key] = None
             else:
                 field_values[key] = request.form.get(key, "")
 
-        fields = TemplateField.query.filter_by(template_id=template.id).all()
-        file_map = asset_map or {}
-try:
-    composed = compose_image_from_fields(
-        template,
-        fields,
-        values=field_values,
-        file_map=file_map
-    )
-except Exception:
-    app.logger.exception("Failed to compose preview image")
-    flash("Failed to create preview image.", "danger")
-    return redirect(url_for("preview_template", template_id=template.id))
-
+        try:
+            composed = compose_image_from_fields(
+                template,
+                fields,
+                values=field_values,
+                file_map=file_map
+            )
+        except Exception:
+            flash("Failed to generate preview.", "danger")
+            return redirect(url_for("preview_template", template_id=template.id))
 
         os.makedirs(preview_folder, exist_ok=True)
         preview_filename = f"preview_{current_user.id}_{template.id}_{int(datetime.utcnow().timestamp())}.png"
         preview_path = os.path.join(preview_folder, preview_filename)
         composed.save(preview_path)
 
-        preview_info = {
+        session["preview_info"] = {
             "preview_filename": preview_filename,
             "field_values": field_values,
-            "template_id": template.id,
             "asset_map": file_map,
+            "template_id": template.id,
         }
-        session["preview_info"] = preview_info
 
         return render_template(
             "preview_template.html",
@@ -1349,6 +1313,7 @@ except Exception:
         )
 
     return render_template("preview_template.html", template=template, fields=fields)
+
 
 
 def _generate_final_certificate_from_preview(user, template, preview_info):
@@ -1442,6 +1407,7 @@ def generate_pdf(template_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

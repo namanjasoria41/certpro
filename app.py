@@ -366,23 +366,17 @@ def register():
                 flash("An account with this mobile number already exists. Please log in.", "warning")
                 return redirect(url_for("login"))
 
-        hashed_password = generate_password_hash(password)
-     if not email:
+       hashed_password = generate_password_hash(password)
+
+    if not email:
     email = f"{phone}@auto.bannerhub.local"
 
-user = User(
+    user = User(
     email=email,
     phone=phone or None,
     password=hashed_password
-)
+    )
 
-        except TypeError:
-            user = User(email=email or None, password=hashed_password)
-            try:
-                if hasattr(User, "phone"):
-                    setattr(user, "phone", phone or None)
-            except Exception:
-                pass
 
         if referral_code_input:
             code_str = referral_code_input.strip().upper()
@@ -1489,6 +1483,7 @@ def generate_pdf(template_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

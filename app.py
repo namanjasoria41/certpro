@@ -173,34 +173,26 @@ def _safe_int(v, default=0):
             return default
 
 
-# Helper: open template image transparently for PIL
 def open_template_image_for_pil(template):
-    """
-    Return a PIL.Image opened for the template regardless of disk or DB storage.
-    Raises RuntimeError if image unavailable.
-    """
-    disk_path = os.path.join(getattr(Config, "TEMPLATE_FOLDER", "static/templates"), template.image_path or "")
-    # Disk file
-    if template.image_path and os.path.exists(disk_path):
-        return Image.open(disk_path).convert("RGBA")
+    # 1️⃣ DB FIRST (permanent)
+    if template.image_data:
+        return Image.open(BytesIO(template.image_data)).convert("RGBA")
 
-    # Binary in DB
-    if getattr(template, "image_data", None):
-        buf = BytesIO(template.image_data)
-        return Image.open(buf).convert("RGBA")
+    # 2️⃣ Disk fallback (optional)
+    if template.image_path:
+        path = os.path.join(Config.TEMPLATE_FOLDER, template.image_path)
+        if os.path.exists(path):
+            return Image.open(path).convert("RGBA")
 
-    # external URL (network fetch)
-    if getattr(template, "image_url", None):
-        try:
-            import requests
+    # 3️⃣ External URL
+    if template.image_url:
+        import requests
+        r = requests.get(template.image_url, timeout=5)
+        r.raise_for_status()
+        return Image.open(BytesIO(r.content)).convert("RGBA")
 
-            resp = requests.get(template.image_url, timeout=5)
-            resp.raise_for_status()
-            return Image.open(BytesIO(resp.content)).convert("RGBA")
-        except Exception:
-            app.logger.exception("Failed to fetch template image from image_url")
+    raise RuntimeError("Template image missing")
 
-    raise RuntimeError("Template image not available")
 
 
 @app.route("/template_image/<int:template_id>")
@@ -1563,6 +1555,7 @@ def generate_pdf(template_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

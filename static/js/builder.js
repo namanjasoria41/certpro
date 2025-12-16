@@ -1,320 +1,314 @@
-/*************************************************
- * SIMPLE MOBILE BUILDER — COMPLETE VERSION
- * Click to place text or image frames
- * Works on mobile + desktop
- *************************************************/
+/* =========================================================
+   GLOBALS
+========================================================= */
 
-let canvas = new fabric.Canvas("builderCanvas", {
-    selection: true,
-    preserveObjectStacking: true
-});
+let canvas;
+let selectedObject = null;
 
-let activeObj = null;
+/* =========================================================
+   INIT
+========================================================= */
 
-// Modes
-let addTextMode = false;
-let addImageMode = false;
-let addCircleImageMode = false;
-
-/*************************************************
- * LOAD BACKGROUND TEMPLATE + AUTO SCALE
- *************************************************/
-fabric.Image.fromURL(TEMPLATE_URL, function (img) {
-
-    canvas.setWidth(img.width);
-    canvas.setHeight(img.height);
-
-    img.set({
-        selectable: false,
-        evented: false
-    });
-
-    canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
-
-    autoScaleCanvas();
+window.onload = () => {
+    initCanvas();
+    loadTemplateImage();
     loadExistingFields();
-});
+    bindSelectionEvents();
+};
 
-/*************************************************
- * AUTO SCALE TO FIT MOBILE SCREEN
- *************************************************/
-function autoScaleCanvas() {
-    const area = document.querySelector(".builder-canvas-area");
+/* =========================================================
+   CANVAS SETUP
+========================================================= */
 
-    const maxW = area.clientWidth - 20;
-    const maxH = area.clientHeight - 20;
-
-    let scale = Math.min(maxW / canvas.width, maxH / canvas.height);
-
-    canvas.setZoom(scale);
-
-    canvas.setViewportTransform([
-        scale, 0,
-        0, scale,
-        (maxW - canvas.width * scale) / 2,
-        (maxH - canvas.height * scale) / 2
-    ]);
-}
-
-/*************************************************
- * LOAD EXISTING FIELDS (from DB)
- *************************************************/
-function loadExistingFields() {
-    EXISTING_FIELDS.forEach(f => {
-        let o = null;
-
-        // TEXT
-        if (f.field_type === "text") {
-            o = new fabric.Textbox(f.field_name, {
-                left: f.x,
-                top: f.y,
-                fontSize: f.font_size || 28,
-                fill: f.color || "#ffffff",
-                width: f.width || 200
-            });
-        }
-
-        // IMAGE - RECT FRAME
-        else if (f.field_type === "image" && f.shape === "rect") {
-            o = new fabric.Rect({
-                left: f.x,
-                top: f.y,
-                width: f.width || 150,
-                height: f.height || 150,
-                fill: "rgba(255,255,255,0.12)",
-                stroke: "#00aaff",
-                strokeWidth: 2
-            });
-        }
-
-        // IMAGE - CIRCLE FRAME
-        else if (f.field_type === "image" && f.shape === "circle") {
-            o = new fabric.Circle({
-                left: f.x,
-                top: f.y,
-                radius: (f.width || 150) / 2,
-                fill: "rgba(255,255,255,0.12)",
-                stroke: "#00aaff",
-                strokeWidth: 2
-            });
-        }
-
-        if (!o) return;
-
-        o.customId = f.field_name;
-        o.field_type = f.field_type;
-        o.shape = f.shape;
-
-        canvas.add(o);
+function initCanvas() {
+    canvas = new fabric.Canvas("builderCanvas", {
+        preserveObjectStacking: true,
+        selection: true
     });
 
-    refreshLayers();
-    canvas.renderAll();
+    canvas.setWidth(900);
+    canvas.setHeight(600);
 }
 
-/*************************************************
- * TOGGLE MODES
- *************************************************/
+function loadTemplateImage() {
+    fabric.Image.fromURL(TEMPLATE_URL, img => {
+        img.set({
+            selectable: false,
+            evented: false,
+            originX: "left",
+            originY: "top"
+        });
+
+        canvas.setWidth(img.width);
+        canvas.setHeight(img.height);
+        canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
+    });
+}
+
+/* =========================================================
+   LOAD EXISTING FIELDS
+========================================================= */
+
+function loadExistingFields() {
+    if (!EXISTING_FIELDS || !Array.isArray(EXISTING_FIELDS)) return;
+
+    EXISTING_FIELDS.forEach(f => {
+        if (f.field_type === "image") {
+            addImageField(
+                f.x,
+                f.y,
+                f.width || 120,
+                f.height || 120,
+                f.shape || "rect",
+                f.field_name
+            );
+        } else {
+            addTextField(
+                f.x,
+                f.y,
+                f.field_name,
+                f.font_size || 24,
+                f.color || "#000000"
+            );
+        }
+    });
+
+    canvas.renderAll();
+    refreshLayerPanel();
+}
+
+/* =========================================================
+   ADD FIELDS
+========================================================= */
+
 function enableAddTextMode() {
-    addTextMode = true;
-    addImageMode = false;
-    addCircleImageMode = false;
-    alert("Tap anywhere on the template to place text.");
+    addTextField(100, 100, "text_field");
 }
 
 function enableAddImageMode() {
-    addImageMode = true;
-    addTextMode = false;
-    addCircleImageMode = false;
-    alert("Tap anywhere on the template to place an image frame.");
+    addImageField(100, 100, 140, 140, "rect", "image_field");
 }
 
 function enableAddCircleImageMode() {
-    addCircleImageMode = true;
-    addTextMode = false;
-    addImageMode = false;
-    alert("Tap anywhere on the template to place a circle image frame.");
+    addImageField(100, 100, 140, 140, "circle", "image_field");
 }
 
-/*************************************************
- * CLICK HANDLER → PLACE OBJECT
- *************************************************/
-canvas.on("mouse:down", function (e) {
-    const pointer = canvas.getPointer(e.e);
+function addTextField(x, y, name, size = 24, color = "#000000") {
+    const text = new fabric.Textbox("Text", {
+        left: x,
+        top: y,
+        fontSize: size,
+        fill: color,
+        fontFamily: "Arial",
+        editable: false,
+        objectCaching: false
+    });
 
-    /************ ADD TEXT *************/
-    if (addTextMode) {
-        let t = new fabric.Textbox("New Text", {
-            left: pointer.x,
-            top: pointer.y,
-            fontSize: 32,
-            fill: "#ffffff",
-            width: 250
-        });
+    attachMeta(text, {
+        field_type: "text",
+        field_name: name
+    });
 
-        t.customId = "text_" + Date.now();
-        t.field_type = "text";
-
-        canvas.add(t);
-        setActive(t);
-
-        addTextMode = false;
-        return;
-    }
-
-    /************ ADD RECT IMAGE FRAME *************/
-    if (addImageMode) {
-        let r = new fabric.Rect({
-            left: pointer.x,
-            top: pointer.y,
-            width: 160,
-            height: 160,
-            fill: "rgba(255,255,255,0.12)",
-            stroke: "#00aaff",
-            strokeWidth: 2,
-        });
-
-        r.customId = "image_" + Date.now();
-        r.field_type = "image";
-        r.shape = "rect";
-
-        canvas.add(r);
-        setActive(r);
-
-        addImageMode = false;
-        return;
-    }
-
-    /************ ADD CIRCLE IMAGE FRAME *************/
-    if (addCircleImageMode) {
-        let c = new fabric.Circle({
-            left: pointer.x,
-            top: pointer.y,
-            radius: 80,
-            fill: "rgba(255,255,255,0.12)",
-            stroke: "#00aaff",
-            strokeWidth: 2,
-        });
-
-        c.customId = "circle_" + Date.now();
-        c.field_type = "image";
-        c.shape = "circle";
-
-        canvas.add(c);
-        setActive(c);
-
-        addCircleImageMode = false;
-        return;
-    }
-});
-
-/*************************************************
- * CANCEL MODES ON SELECTION
- *************************************************/
-canvas.on("selection:created", function () {
-    addTextMode = false;
-    addImageMode = false;
-    addCircleImageMode = false;
-});
-canvas.on("selection:updated", function () {
-    addTextMode = false;
-    addImageMode = false;
-    addCircleImageMode = false;
-});
-
-/*************************************************
- * PROPERTIES PANEL SYNC
- *************************************************/
-function updatePropertiesPanel(o) {
-    if (!o) return;
-
-    document.getElementById("propName").value = o.customId || "";
-    document.getElementById("propFontSize").value = o.fontSize || "";
-    document.getElementById("propColor").value = o.fill || "#ffffff";
+    canvas.add(text);
+    canvas.setActiveObject(text);
 }
 
-canvas.on("selection:created", () => updatePropertiesPanel(canvas.getActiveObject()));
-canvas.on("selection:updated", () => updatePropertiesPanel(canvas.getActiveObject()));
+function addImageField(x, y, w, h, shape, name) {
+    let obj;
 
-/*************************************************
- * PROPERTY UPDATES
- *************************************************/
+    if (shape === "circle") {
+        obj = new fabric.Circle({
+            radius: w / 2,
+            fill: "rgba(0,0,0,0.15)"
+        });
+    } else {
+        obj = new fabric.Rect({
+            width: w,
+            height: h,
+            fill: "rgba(0,0,0,0.15)"
+        });
+    }
+
+    const group = new fabric.Group([obj], {
+        left: x,
+        top: y,
+        lockRotation: true
+    });
+
+    attachMeta(group, {
+        field_type: "image",
+        field_name: name,
+        shape: shape,
+        width: w,
+        height: h
+    });
+
+    canvas.add(group);
+    canvas.setActiveObject(group);
+}
+
+/* =========================================================
+   META HELPERS
+========================================================= */
+
+function attachMeta(obj, meta) {
+    obj.meta = {
+        field_name: meta.field_name || "field",
+        field_type: meta.field_type || "text",
+        shape: meta.shape || null
+    };
+}
+
+/* =========================================================
+   SELECTION + PROPERTIES
+========================================================= */
+
+function bindSelectionEvents() {
+    canvas.on("selection:created", onSelect);
+    canvas.on("selection:updated", onSelect);
+    canvas.on("selection:cleared", () => {
+        selectedObject = null;
+    });
+}
+
+function onSelect(e) {
+    selectedObject = e.selected[0];
+    syncPropertiesPanel();
+}
+
+function syncPropertiesPanel() {
+    if (!selectedObject || !selectedObject.meta) return;
+
+    document.getElementById("propName").value =
+        selectedObject.meta.field_name || "";
+
+    if (selectedObject.meta.field_type === "text") {
+        document.getElementById("propFontSize").value =
+            selectedObject.fontSize || 24;
+
+        document.getElementById("propColor").value =
+            selectedObject.fill || "#000000";
+    }
+}
+
 function updateName() {
-    if (canvas.getActiveObject()) {
-        canvas.getActiveObject().customId =
-            document.getElementById("propName").value;
-
-        refreshLayers();
-    }
+    if (!selectedObject) return;
+    selectedObject.meta.field_name =
+        document.getElementById("propName").value;
+    refreshLayerPanel();
 }
 
 function updateFontSize() {
-    const obj = canvas.getActiveObject();
-    if (obj && obj.type === "textbox") {
-        obj.set("fontSize", parseInt(document.getElementById("propFontSize").value));
-        canvas.renderAll();
-    }
+    if (!selectedObject || selectedObject.meta.field_type !== "text") return;
+    selectedObject.set("fontSize", parseInt(propFontSize.value));
+    canvas.renderAll();
 }
 
 function updateColor() {
-    const obj = canvas.getActiveObject();
-    if (obj) {
-        obj.set("fill", document.getElementById("propColor").value);
-        canvas.renderAll();
-    }
+    if (!selectedObject || selectedObject.meta.field_type !== "text") return;
+    selectedObject.set("fill", propColor.value);
+    canvas.renderAll();
 }
 
-/*************************************************
- * LAYERS PANEL
- *************************************************/
-function refreshLayers() {
+/* =========================================================
+   DELETE FIELD
+========================================================= */
+
+function deleteSelectedField() {
+    if (!selectedObject) return;
+
+    canvas.remove(selectedObject);
+    selectedObject = null;
+    refreshLayerPanel();
+}
+
+/* =========================================================
+   LAYERS PANEL
+========================================================= */
+
+function refreshLayerPanel() {
     const list = document.getElementById("layerList");
     list.innerHTML = "";
 
-    canvas.getObjects().forEach(o => {
+    canvas.getObjects().forEach((obj, i) => {
+        if (!obj.meta) return;
+
         const li = document.createElement("li");
-        li.innerText = o.customId;
-        li.onclick = () => setActive(o);
+        li.innerHTML = `
+            <span>${obj.meta.field_name}</span>
+            <i class="bi bi-trash" style="cursor:pointer"></i>
+        `;
+
+        li.onclick = () => {
+            canvas.setActiveObject(obj);
+            canvas.renderAll();
+        };
+
+        li.querySelector("i").onclick = e => {
+            e.stopPropagation();
+            canvas.remove(obj);
+            refreshLayerPanel();
+        };
+
         list.appendChild(li);
     });
 }
 
-function setActive(o) {
-    canvas.setActiveObject(o);
-    activeObj = o;
-    updatePropertiesPanel(o);
-    canvas.renderAll();
+/* =========================================================
+   DRAWER TOGGLES
+========================================================= */
+
+function toggleProperties() {
+    document.getElementById("propertiesPanel").classList.toggle("open");
 }
 
-/*************************************************
- * SAVE TEMPLATE FIELDS TO BACKEND
- *************************************************/
+function toggleLayers() {
+    document.getElementById("layersPanel").classList.toggle("open");
+}
+
+/* =========================================================
+   SAVE TO BACKEND
+========================================================= */
+
 function saveTemplate() {
-    const objects = canvas.getObjects().map(o => ({
-        field_name: o.customId,
-        field_type: o.field_type,
-        shape: o.shape,
-        x: Math.round(o.left),
-        y: Math.round(o.top),
-        width: Math.round(o.getScaledWidth ? o.getScaledWidth() : o.width),
-        height: Math.round(o.getScaledHeight ? o.getScaledHeight() : o.height),
-        font_size: o.fontSize || null,
-        color: o.fill || null
-    }));
+    const fields = [];
+
+    canvas.getObjects().forEach(obj => {
+        if (!obj.meta) return;
+
+        const base = {
+            field_name: obj.meta.field_name,
+            field_type: obj.meta.field_type,
+            x: Math.round(obj.left),
+            y: Math.round(obj.top)
+        };
+
+        if (obj.meta.field_type === "text") {
+            base.font_size = obj.fontSize;
+            base.color = obj.fill;
+        }
+
+        if (obj.meta.field_type === "image") {
+            base.shape = obj.meta.shape;
+            base.width = Math.round(obj.width * obj.scaleX);
+            base.height = Math.round(obj.height * obj.scaleY);
+        }
+
+        fields.push(base);
+    });
 
     fetch(`/admin/template/${TEMPLATE_ID}/builder`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fields: objects })
+        body: JSON.stringify({ fields })
     })
-    .then(r => r.json())
-    .then(res => {
-        if (res.status === "ok") {
-            alert("Template Saved!");
-        } else {
-            alert("Failed to save template.");
-        }
-    });
+        .then(res => res.json())
+        .then(res => {
+            if (res.status === "ok") {
+                alert("Template saved successfully");
+            } else {
+                alert("Save failed");
+            }
+        })
+        .catch(() => alert("Server error"));
 }
-
-

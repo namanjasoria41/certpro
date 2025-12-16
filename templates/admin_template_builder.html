@@ -70,18 +70,20 @@
 
         <div class="drawer-body">
 
-            <label>Field Name</label>
-            <input id="propName" class="drawer-input" onchange="updateName()">
+    <label>Field Name</label>
+    <input id="propName" class="drawer-input" onchange="updateName()">
 
-            <label>Font Size</label>
-            <input id="propFontSize" type="number" class="drawer-input" onchange="updateFontSize()">
+    <label>Font Size</label>
+    <input id="propFontSize" type="number" class="drawer-input" onchange="updateFontSize()">
 
-            <label>Color</label>
-            <input id="propColor" type="color" class="drawer-input" onchange="updateColor()">
+    <label>Color</label>
+    <input id="propColor" type="color" class="drawer-input" onchange="updateColor()">
 
-        </div>
+    <button class="delete-btn" onclick="deleteSelectedField()">
+        <i class="bi bi-trash"></i> Delete Field
+    </button>
 
-    </div>
+</div>
 
 
 
@@ -120,3 +122,4 @@
 <script src="{{ url_for('static', filename='js/builder.js') }}"></script>
 
 {% endblock %}
+

@@ -9,137 +9,192 @@
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
 
     <style>
-    /* --- 1. DARK MOBILE CORE --- */
-    body {
-        background-color: #000;
-        /* Animated dark gradients */
-        background: radial-gradient(circle at 10% 20%, rgb(69, 0, 87) 0%, rgb(0, 0, 0) 90.2%),
-                    radial-gradient(circle at 90% 80%, rgb(24, 0, 66) 0%, rgb(0, 0, 0) 90.2%),
-                    linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-        background-size: 200% 200%;
-        background-attachment: fixed; /* Performance boost for mobile scroll */
-        animation: dark-shift 15s ease infinite;
-        font-family: 'Segoe UI', sans-serif;
-        color: #e0e0e0;
-        min-height: 100vh;
-        overflow-x: hidden;
-        padding-bottom: 80px; /* Space for bottom scrolling */
+/* ===============================
+   GLOBAL THEME VARIABLES
+================================ */
+:root {
+    --bg-main: linear-gradient(135deg, #0f0626, #1b0f3a, #0b1b2e);
+    --glass-bg: rgba(255,255,255,0.06);
+    --glass-border: rgba(255,255,255,0.12);
+    --primary: #6f5cff;
+    --accent: #00ffd5;
+    --text-main: #eaeaf0;
+    --text-muted: #a8a8c7;
+}
+
+/* ===============================
+   BASE RESET
+================================ */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg-main);
+    color: var(--text-main);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ===============================
+   NAVBAR (PROFESSIONAL)
+================================ */
+.navbar {
+    background: rgba(10, 5, 30, 0.85) !important;
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.navbar-brand {
+    font-weight: 800;
+    letter-spacing: 0.5px;
+}
+
+.nav-link {
+    color: var(--text-muted) !important;
+    font-weight: 500;
+}
+
+.nav-link:hover {
+    color: white !important;
+}
+
+/* ===============================
+   CONTAINERS
+================================ */
+.container {
+    padding-top: 20px;
+    padding-bottom: 30px;
+}
+
+/* ===============================
+   GLASS CARDS
+================================ */
+.card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(18px);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    color: var(--text-main);
+}
+
+.card-title {
+    font-weight: 700;
+}
+
+.card-text {
+    color: var(--text-muted);
+}
+
+/* ===============================
+   BUTTONS (APP-LIKE)
+================================ */
+.btn {
+    border-radius: 14px;
+    font-weight: 600;
+    padding: 10px 16px;
+    transition: all 0.15s ease;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #6f5cff, #8b7bff);
+    border: none;
+}
+
+.btn-primary:hover {
+    opacity: 0.92;
+}
+
+.btn-outline-primary {
+    border: 1px solid var(--primary);
+    color: var(--primary);
+}
+
+.btn-outline-primary:hover {
+    background: var(--primary);
+    color: white;
+}
+
+.btn-outline-success {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.btn-outline-success:hover {
+    background: var(--accent);
+    color: #001b18;
+}
+
+.btn:active {
+    transform: scale(0.96);
+}
+
+/* ===============================
+   FORMS
+================================ */
+input, select, textarea {
+    background: rgba(0,0,0,0.35) !important;
+    border: 1px solid var(--glass-border) !important;
+    border-radius: 14px !important;
+    color: var(--text-main) !important;
+}
+
+input::placeholder {
+    color: #9c9cc9;
+}
+
+input:focus {
+    box-shadow: 0 0 0 2px rgba(111,92,255,.35);
+}
+
+/* ===============================
+   HEADINGS
+================================ */
+h1, h2, h3, h4, h5 {
+    font-weight: 800;
+}
+
+h2, h3 {
+    letter-spacing: -0.3px;
+}
+
+/* ===============================
+   ALERTS
+================================ */
+.alert {
+    border-radius: 14px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid var(--glass-border);
+    color: white;
+}
+
+/* ===============================
+   FOOTER (OPTIONAL)
+================================ */
+footer {
+    color: var(--text-muted);
+    text-align: center;
+    padding: 16px;
+    font-size: 14px;
+}
+
+/* ===============================
+   MOBILE OPTIMIZATION
+================================ */
+@media (max-width: 768px) {
+    .container {
+        padding-left: 14px;
+        padding-right: 14px;
     }
 
-    @keyframes dark-shift {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
+    h2 {
+        font-size: 22px;
     }
+}
+</style>
 
-    /* --- 2. RESPONSIVE NEON TEXT --- */
-    h1, h2, h3, .navbar-brand {
-        color: #fff;
-        text-transform: uppercase;
-        text-shadow: 0 0 10px #ff00de, 0 0 20px #ff00de;
-        animation: neon-pulse 1.5s infinite alternate;
-        word-wrap: break-word; /* Prevents overflow on small screens */
-    }
-    
-    /* Mobile Text Scaling */
-    @media (max-width: 768px) {
-        h1 { font-size: 1.8rem; }
-        h2 { font-size: 1.5rem; }
-        .display-4 { font-size: 2.5rem; }
-    }
-
-    /* --- 3. MOBILE-FIRST GLASS CARDS --- */
-    .card {
-        background: rgba(0, 0, 0, 0.7);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 0, 222, 0.3);
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-        color: #fff;
-        border-radius: 15px;
-        margin-bottom: 20px;
-    }
-
-    /* --- 4. TOUCH-FRIENDLY INPUTS & BUTTONS --- */
-    .form-control, .form-select {
-        background: rgba(20, 20, 20, 0.9) !important;
-        border: 2px solid #333 !important;
-        color: #00ffd5 !important;
-        border-radius: 10px;
-        height: 50px; /* Taller for fingers */
-        font-size: 16px; /* Prevents iOS auto-zoom */
-    }
-    
-    .form-control:focus {
-        background: #000 !important;
-        border-color: #ff00de !important;
-        box-shadow: 0 0 15px rgba(255, 0, 222, 0.5);
-    }
-
-    .btn {
-        height: 50px; /* Taller for fingers */
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 10px;
-        font-weight: bold;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-bottom: 10px;
-    }
-
-    .btn-primary {
-        background-color: transparent !important;
-        border: 2px solid #00ffd5 !important;
-        color: #00ffd5 !important;
-        box-shadow: 0 0 10px rgba(0, 255, 213, 0.2);
-    }
-    
-    .btn-primary:active {
-        background-color: #00ffd5 !important;
-        color: #000 !important;
-    }
-
-    /* --- 5. MOBILE NAVBAR --- */
-    .navbar {
-        background: rgba(0, 0, 0, 0.9) !important;
-        border-bottom: 2px solid #333;
-        padding-top: 15px;
-        padding-bottom: 15px;
-    }
-    
-    .navbar-toggler {
-        border-color: #ff00de;
-        padding: 10px;
-    }
-    
-    .navbar-toggler-icon {
-        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255, 0, 222, 1)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
-    }
-
-    /* Fix dropdown visibility on mobile */
-    @media (max-width: 991px) {
-        .navbar-collapse {
-            background: rgba(10, 10, 10, 0.98);
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            z-index: 1000;
-            padding: 20px;
-            border-bottom: 2px solid #ff00de;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.8);
-        }
-        .nav-item {
-            margin-bottom: 15px;
-            text-align: center;
-        }
-        .nav-link {
-            font-size: 1.2rem;
-            color: #fff !important;
-        }
-    }
-    </style>
 </head>
 <body>
     <div style="text-align:center; margin-top:10px; font-size:14px; color:#bbb;">
@@ -275,6 +330,7 @@
 </body>
 
 </html>
+
 
 
 

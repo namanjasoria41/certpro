@@ -341,48 +341,45 @@ def register():
     if current_user.is_authenticated:
         return redirect(url_for("index"))
 
-        if request.method == "POST":
-    email = request.form.get("email", "").strip().lower()
-    phone = request.form.get("phone", "").strip()
-    password = request.form.get("password", "").strip()
-    confirm_password = request.form.get("confirm_password", "").strip()
-    referral_code_input = request.form.get("referral_code", "").strip()
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        phone = request.form.get("phone", "").strip()
+        password = request.form.get("password", "").strip()
+        confirm_password = request.form.get("confirm_password", "").strip()
+        referral_code_input = request.form.get("referral_code", "").strip()
 
-    if (not email and not phone) or not password:
-        flash("Please provide email or phone and password.", "danger")
-        return redirect(url_for("register"))
+        if (not email and not phone) or not password:
+            flash("Please provide email or phone and password.", "danger")
+            return redirect(url_for("register"))
 
-    if password != confirm_password:
-        flash("Passwords do not match.", "danger")
-        return redirect(url_for("register"))
+        if password != confirm_password:
+            flash("Passwords do not match.", "danger")
+            return redirect(url_for("register"))
 
-    if not email:
-        email = f"{phone}@auto.bannerhub.local"
+        if not email:
+            email = f"{phone}@auto.bannerhub.local"
 
-    existing = User.query.filter_by(email=email).first()
-    if existing:
-        flash("Account already exists. Please log in.", "warning")
-        return redirect(url_for("login"))
+        existing = User.query.filter_by(email=email).first()
+        if existing:
+            flash("Account already exists. Please log in.", "warning")
+            return redirect(url_for("login"))
 
-    hashed_password = generate_password_hash(password)
+        hashed_password = generate_password_hash(password)
 
-    user = User(
-        email=email,
-        phone=phone or None,
-        password=hashed_password
-    )
+        user = User(
+            email=email,
+            phone=phone or None,
+            password=hashed_password
+        )
 
-    db.session.add(user)
-    db.session.commit()
-
-    flash("Registration successful. Please log in.", "success")
-    return redirect(url_for("login"))
-
+        db.session.add(user)
+        db.session.commit()
 
         flash("Registration successful. Please log in.", "success")
         return redirect(url_for("login"))
 
     return render_template("register.html")
+
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -1445,6 +1442,7 @@ def generate_pdf(template_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

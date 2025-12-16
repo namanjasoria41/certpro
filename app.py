@@ -1320,19 +1320,19 @@ def _generate_final_certificate_from_preview(user, template, preview_info):
     field_values = preview_info.get("field_values", {}) if isinstance(preview_info, dict) else {}
     asset_map = preview_info.get("asset_map", {}) if isinstance(preview_info, dict) else {}
 
-   fields = TemplateField.query.filter_by(template_id=template.id).all()
-   file_map = asset_map or {}
+    fields = TemplateField.query.filter_by(template_id=template.id).all()
+    file_map = asset_map or {}
 
     composed = compose_image_from_fields(
-    template,
-    fields,
-    values=field_values,
-    file_map=file_map
-)
-
+        template,
+        fields,
+        values=field_values,
+        file_map=file_map
+    )
 
     generated_folder = getattr(Config, "GENERATED_FOLDER", "static/generated")
     os.makedirs(generated_folder, exist_ok=True)
+
     filename = f"certificate_{user.id}_{template.id}_{int(datetime.utcnow().timestamp())}.png"
     output_path = os.path.join(generated_folder, filename)
     composed.save(output_path)
@@ -1407,6 +1407,7 @@ def generate_pdf(template_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

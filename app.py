@@ -1239,10 +1239,7 @@ def fill_template(template_id):
 
     if request.method == "POST":
 
-        # Wallet validation
-        if current_user.wallet_balance < (template.price or 0):
-            flash("Insufficient wallet balance. Please add money first.", "danger")
-            return redirect(url_for("wallet"))
+
 
         field_values = {}     # For text fields
         file_map = {}         # For image fields
@@ -1555,6 +1552,7 @@ def generate_pdf(template_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

@@ -341,81 +341,43 @@ def register():
     if current_user.is_authenticated:
         return redirect(url_for("index"))
 
-    if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
-        phone = request.form.get("phone", "").strip()
-        password = request.form.get("password", "").strip()
-        confirm_password = request.form.get("confirm_password", "").strip()
-        referral_code_input = request.form.get("referral_code", "").strip()
+        if request.method == "POST":
+    email = request.form.get("email", "").strip().lower()
+    phone = request.form.get("phone", "").strip()
+    password = request.form.get("password", "").strip()
+    confirm_password = request.form.get("confirm_password", "").strip()
+    referral_code_input = request.form.get("referral_code", "").strip()
 
-        if (not email and not phone) or not password:
-            flash("Please provide at least an email or mobile number, and a password.", "danger")
-            return redirect(url_for("register"))
-        if password != confirm_password:
-            flash("Passwords do not match.", "danger")
-            return redirect(url_for("register"))
+    if (not email and not phone) or not password:
+        flash("Please provide email or phone and password.", "danger")
+        return redirect(url_for("register"))
 
-        if email:
-            existing_email = safe_query_user_by_email(email)
-            if existing_email:
-                flash("An account with this email already exists. Please log in.", "warning")
-                return redirect(url_for("login"))
-        if phone:
-            existing_phone = safe_query_user_by_phone(phone)
-            if existing_phone:
-                flash("An account with this mobile number already exists. Please log in.", "warning")
-                return redirect(url_for("login"))
-
-       hashed_password = generate_password_hash(password)
+    if password != confirm_password:
+        flash("Passwords do not match.", "danger")
+        return redirect(url_for("register"))
 
     if not email:
-    email = f"{phone}@auto.bannerhub.local"
+        email = f"{phone}@auto.bannerhub.local"
+
+    existing = User.query.filter_by(email=email).first()
+    if existing:
+        flash("Account already exists. Please log in.", "warning")
+        return redirect(url_for("login"))
+
+    hashed_password = generate_password_hash(password)
 
     user = User(
-    email=email,
-    phone=phone or None,
-    password=hashed_password
+        email=email,
+        phone=phone or None,
+        password=hashed_password
     )
 
+    db.session.add(user)
+    db.session.commit()
 
-        if referral_code_input:
-            code_str = referral_code_input.strip().upper()
-            rc = ReferralCode.query.filter_by(code=code_str, is_active=True).first()
-            if rc:
-                if rc.expires_at and rc.expires_at < datetime.utcnow():
-                    flash("Referral code has expired.", "warning")
-                elif rc.max_uses is not None and rc.used_count >= rc.max_uses:
-                    flash("Referral code has reached maximum uses.", "warning")
-                else:
-                    try:
-                        user.referred_by = rc.owner
-                        if hasattr(user, "wallet_balance"):
-                            user.wallet_balance = (user.wallet_balance or 0.0) + getattr(Config, "REFERRAL_NEW_USER_BONUS", 0.0)
-                    except Exception:
-                        app.logger.exception("Failed to set referral on new user")
-                    try:
-                        redemption = ReferralRedemption(
-                            referral_code=rc,
-                            redeemed_by_user=user,
-                            reward_amount=getattr(Config, "REFERRAL_OWNER_BONUS", 0.0),
-                        )
-                        db.session.add(redemption)
-                        if hasattr(rc.owner, "wallet_balance"):
-                            rc.owner.wallet_balance = (rc.owner.wallet_balance or 0.0) + getattr(Config, "REFERRAL_OWNER_BONUS", 0.0)
-                        rc.used_count = (rc.used_count or 0) + 1
-                    except Exception:
-                        app.logger.exception("Failed to create referral redemption")
-            else:
-                flash("Invalid or inactive referral code.", "warning")
+    flash("Registration successful. Please log in.", "success")
+    return redirect(url_for("login"))
 
-        try:
-            db.session.add(user)
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-            app.logger.exception("Failed to create user during registration.")
-            flash("Registration failed due to server error.", "danger")
-            return redirect(url_for("register"))
 
         flash("Registration successful. Please log in.", "success")
         return redirect(url_for("login"))
@@ -1483,6 +1445,7 @@ def generate_pdf(template_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

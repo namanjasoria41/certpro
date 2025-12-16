@@ -1400,40 +1400,31 @@ def generate_pdf(template_id):
 
     return {"status": "ok", "url": url_for("view_certificate", filename=fname)}
 
-function deleteSelectedField() {
-    if (!selectedObject) {
-        alert("No field selected");
-        return;
-    }
+@app.route("/admin/template/<int:template_id>/field/<int:field_id>/delete", methods=["POST"])
+@login_required
+def delete_template_field(template_id, field_id):
+    # Optional: restrict to admin only
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({"status": "error", "message": "Unauthorized"}), 403
 
-    if (!selectedObject.field_id) {
-        // Not saved yet (new field)
-        canvas.remove(selectedObject);
-        canvas.requestRenderAll();
-        return;
-    }
+    field = TemplateField.query.filter_by(
+        id=field_id,
+        template_id=template_id
+    ).first()
 
-    if (!confirm("Delete this field permanently?")) return;
+    if not field:
+        return jsonify({"status": "error", "message": "Field not found"}), 404
 
-    fetch(`/admin/template/field/${selectedObject.field_id}/delete`, {
-        method: "POST",
-        headers: {
-            "X-Requested-With": "XMLHttpRequest"
-        }
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.status === "ok") {
-            canvas.remove(selectedObject);
-            canvas.requestRenderAll();
-            selectedObject = null;
-            alert("Field deleted");
-        } else {
-            alert("Delete failed");
-        }
-    })
-    .catch(() => alert("Server error"));
-}
+    try:
+        db.session.delete(field)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        app.logger.exception("Failed to delete template field")
+        return jsonify({"status": "error", "message": "Delete failed"}), 500
+
+    return jsonify({"status": "ok", "deleted_field_id": field_id})
+
 
 # --------------------------------------------------------------------------
 # Main
@@ -1441,6 +1432,7 @@ function deleteSelectedField() {
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

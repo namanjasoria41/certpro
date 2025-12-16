@@ -261,9 +261,9 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
     values = values or {}
     file_map = file_map or {}
 
-    # detect whether base_image_path_or_url is a route (starts with /template_image/) else filesystem
-     # ALWAYS load base image from template (DB-first)
-     base_image = open_template_image_for_pil(template)
+    # ALWAYS load base image from template (DB-first)
+    base_image = open_template_image_for_pil(template)
+
 
 
     draw = ImageDraw.Draw(base_image)
@@ -1516,6 +1516,7 @@ def generate_pdf(template_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

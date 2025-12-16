@@ -1475,15 +1475,8 @@ def generate_pdf(template_id):
     field_values = data.get("values", {})
 
     # Load background (same as PNG system)
-    base_src = _ensure_template_image_exists_or_redirect(template)
-    if not base_src:
-        return {"status": "error", "message": "Base image missing"}, 400
+    im = open_template_image_for_pil(template)
 
-    from PIL import Image
-    if base_src.startswith("/template_image/"):
-        im = open_template_image_for_pil(template)
-    else:
-        im = Image.open(base_src)
     width, height = im.size
 
     html_fields = []
@@ -1523,6 +1516,7 @@ def generate_pdf(template_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

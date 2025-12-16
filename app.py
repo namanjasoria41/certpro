@@ -247,25 +247,15 @@ def _ensure_template_image_exists_or_redirect(template):
     return None
 
 
-# compose image: draw texts and paste uploaded images according to fields
 def compose_image_from_fields(template, fields, values=None, file_map=None):
-
     """
-    base_image_path_or_url:
-      - if startswith '/template_image/' or is URL, we need to load template image bytes from DB or external URL.
-      - if it's a filesystem path, PIL.Image.open() works.
-    fields: iterable of TemplateField instances
-    values: dict of {field_name: text}
-    file_map: dict of {field_name: absolute_saved_path} for uploaded images
+    Draw text and paste uploaded images on the template image.
     """
     values = values or {}
     file_map = file_map or {}
 
-    # ALWAYS load base image from template (DB-first)
+    # Always load base image safely (DB → disk → URL)
     base_image = open_template_image_for_pil(template)
-
-
-
     draw = ImageDraw.Draw(base_image)
 
     for field in fields:
@@ -273,10 +263,14 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
         if not key:
             continue
 
-        ftype = (getattr(field, "field_type", None) or getattr(field, "type", None) or "text").lower()
+        ftype = (getattr(field, "field_type", None)
+                 or getattr(field, "type", None)
+                 or "text").lower()
+
         x = getattr(field, "x", None)
         if x is None:
             x = getattr(field, "x_position", 0) or 0
+
         y = getattr(field, "y", None)
         if y is None:
             y = getattr(field, "y_position", 0) or 0
@@ -287,75 +281,53 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
         width = getattr(field, "width", None)
         height = getattr(field, "height", None)
         shape = getattr(field, "shape", None) or "rect"
-        font_family_token = getattr(field, "font_family", None) or getattr(field, "font", None) or "default"
+        font_family = getattr(field, "font_family", None) or getattr(field, "font", None)
 
+        # ---------------- IMAGE FIELD ----------------
         if ftype == "image":
-            file_path = file_map.get(key)
-            if not file_path or not os.path.exists(file_path):
-                app.logger.debug("No file to paste for image field %s", key)
-                continue
-            try:
-                user_img = Image.open(file_path).convert("RGBA")
-            except Exception:
-                app.logger.exception("Failed to open image file for field %s", key)
+            img_path = file_map.get(key)
+            if not img_path or not os.path.exists(img_path):
                 continue
 
-            # resize if width/height specified
             try:
-                if width and height:
-                    user_img = user_img.resize((int(width), int(height)), Image.LANCZOS)
+                user_img = Image.open(img_path).convert("RGBA")
             except Exception:
-                app.logger.exception("Failed resizing image for field %s", key)
+                continue
+
+            if width and height:
+                user_img = user_img.resize((int(width), int(height)), Image.LANCZOS)
 
             if shape == "circle":
-                w, h = user_img.size
-                size = min(w, h)
-                left = (w - size) // 2
-                top = (h - size) // 2
-                user_img = user_img.crop((left, top, left + size, top + size))
-                mask = Image.new("L", user_img.size, 0)
-                mdraw = ImageDraw.Draw(mask)
-                mdraw.ellipse((0, 0, user_img.size[0], user_img.size[1]), fill=255)
+                size = min(user_img.size)
+                mask = Image.new("L", (size, size), 0)
+                d = ImageDraw.Draw(mask)
+                d.ellipse((0, 0, size, size), fill=255)
+                user_img = user_img.crop((0, 0, size, size))
                 user_img.putalpha(mask)
 
-            try:
-                base_image.alpha_composite(user_img, dest=(int(x), int(y)))
-            except Exception:
-                try:
-                    base_image.paste(user_img, (int(x), int(y)), user_img)
-                except Exception:
-                    app.logger.exception("Failed to paste uploaded image for field %s", key)
+            base_image.paste(user_img, (int(x), int(y)), user_img)
+
+        # ---------------- TEXT FIELD ----------------
         else:
             text = values.get(key, "")
-            if text is None or text == "":
-                continue  # skip empty texts
+            if not text:
+                continue
 
-            font_path = get_font_path_for_token(font_family_token)
+            font_path = get_font_path_for_token(font_family)
             try:
-                if font_path:
-                    font = ImageFont.truetype(font_path, int(font_size))
-                else:
-                    font = ImageFont.load_default()
+                font = ImageFont.truetype(font_path, int(font_size)) if font_path else ImageFont.load_default()
             except Exception:
-                app.logger.exception("Loading font failed for token %s", font_family_token)
                 font = ImageFont.load_default()
 
-            try:
-                text_bbox = draw.textbbox((0, 0), text, font=font)
-                text_width = text_bbox[2] - text_bbox[0]
-            except Exception:
-                text_width = 0
-
+            text_width = draw.textbbox((0, 0), text, font=font)[2]
             tx = int(x)
-            if align == "center":
-                tx = int(tx - (text_width // 2))
-            elif align == "right":
-                tx = int(tx - text_width)
 
-            try:
-                draw.text((tx, int(y)), text, fill=color, font=font)
-            except Exception:
-                app.logger.exception("Failed to draw text for field %s", key)
+            if align == "center":
+                tx -= text_width // 2
+            elif align == "right":
+                tx -= text_width
+
+            draw.text((tx, int(y)), text, fill=color, font=font)
 
     return base_image
 
@@ -1510,6 +1482,7 @@ def generate_pdf(template_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

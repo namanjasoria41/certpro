@@ -1400,6 +1400,40 @@ def generate_pdf(template_id):
 
     return {"status": "ok", "url": url_for("view_certificate", filename=fname)}
 
+function deleteSelectedField() {
+    if (!selectedObject) {
+        alert("No field selected");
+        return;
+    }
+
+    if (!selectedObject.field_id) {
+        // Not saved yet (new field)
+        canvas.remove(selectedObject);
+        canvas.requestRenderAll();
+        return;
+    }
+
+    if (!confirm("Delete this field permanently?")) return;
+
+    fetch(`/admin/template/field/${selectedObject.field_id}/delete`, {
+        method: "POST",
+        headers: {
+            "X-Requested-With": "XMLHttpRequest"
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === "ok") {
+            canvas.remove(selectedObject);
+            canvas.requestRenderAll();
+            selectedObject = null;
+            alert("Field deleted");
+        } else {
+            alert("Delete failed");
+        }
+    })
+    .catch(() => alert("Server error"));
+}
 
 # --------------------------------------------------------------------------
 # Main
@@ -1407,6 +1441,7 @@ def generate_pdf(template_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

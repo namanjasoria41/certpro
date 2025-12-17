@@ -1123,11 +1123,15 @@ def index():
     categories = sorted(set(getattr(t, "category", None) for t in templates if getattr(t, "category", None)))
     return render_template("index.html", templates=templates, categories=categories)
 
+@app.route("/category/<string:category>")
+def category_view(category):
+    templates = Template.query.filter_by(category=category).all()
+    return render_template(
+        "categories.html",
+        templates=templates,
+        category=category
+    )
 
-@app.route("/category/<category_name>")
-def category(category_name):
-    templates = Template.query.filter_by(category=category_name).all()
-    return render_template("category.html", templates=templates, category=category_name)
 
 
 @app.route("/generated/<filename>")
@@ -1432,6 +1436,7 @@ def delete_template_field(template_id, field_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

@@ -1,337 +1,187 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>{% block title %} | Banner Hub{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    {% block extra_css %}{% endblock %}
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Banner Hub{% endblock %}</title>
 
-    <style>
-/* ===============================
-   GLOBAL THEME VARIABLES
-================================ */
-:root {
-    --bg-main: linear-gradient(135deg, #0f0626, #1b0f3a, #0b1b2e);
-    --glass-bg: rgba(255,255,255,0.06);
-    --glass-border: rgba(255,255,255,0.12);
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+
+  {% block extra_css %}{% endblock %}
+
+  <style>
+  :root {
+    --bg-main: linear-gradient(135deg,#0f0626,#1b0f3a,#0b1b2e);
+    --glass-bg: rgba(255,255,255,.06);
+    --glass-border: rgba(255,255,255,.12);
     --primary: #6f5cff;
     --accent: #00ffd5;
     --text-main: #eaeaf0;
     --text-muted: #a8a8c7;
-}
+  }
 
-/* ===============================
-   BASE RESET
-================================ */
-* {
-    box-sizing: border-box;
-}
+  * { box-sizing: border-box; }
 
-body {
+  body {
     margin: 0;
-    min-height: 100vh;
     background: var(--bg-main);
     color: var(--text-main);
-    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    -webkit-font-smoothing: antialiased;
-}
+    font-family: Inter, system-ui, sans-serif;
+    overflow-x: hidden;
+  }
 
-/* ===============================
-   NAVBAR (PROFESSIONAL)
-================================ */
-.navbar {
-    background: rgba(10, 5, 30, 0.85) !important;
+  /* NAVBAR */
+  .navbar {
+    background: rgba(10,5,30,.85);
     backdrop-filter: blur(16px);
     border-bottom: 1px solid var(--glass-border);
-}
+  }
 
-.navbar-brand {
-    font-weight: 800;
-    letter-spacing: 0.5px;
-}
+  /* MAIN WRAPPER */
+  .main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 16px;
+  }
 
-.nav-link {
-    color: var(--text-muted) !important;
-    font-weight: 500;
-}
-
-.nav-link:hover {
-    color: white !important;
-}
-
-/* ===============================
-   CONTAINERS
-================================ */
-.container {
-    padding-top: 20px;
-    padding-bottom: 30px;
-}
-
-/* ===============================
-   GLASS CARDS
-================================ */
-.card {
-    background: var(--glass-bg);
-    backdrop-filter: blur(18px);
-    border: 1px solid var(--glass-border);
-    border-radius: 20px;
-    color: var(--text-main);
-}
-
-.card-title {
-    font-weight: 700;
-}
-
-.card-text {
-    color: var(--text-muted);
-}
-
-/* ===============================
-   BUTTONS (APP-LIKE)
-================================ */
-.btn {
+  /* FLASH */
+  .alert {
     border-radius: 14px;
-    font-weight: 600;
-    padding: 10px 16px;
-    transition: all 0.15s ease;
-}
-
-.btn-primary {
-    background: linear-gradient(135deg, #6f5cff, #8b7bff);
-    border: none;
-}
-
-.btn-primary:hover {
-    opacity: 0.92;
-}
-
-.btn-outline-primary {
-    border: 1px solid var(--primary);
-    color: var(--primary);
-}
-
-.btn-outline-primary:hover {
-    background: var(--primary);
-    color: white;
-}
-
-.btn-outline-success {
-    border-color: var(--accent);
-    color: var(--accent);
-}
-
-.btn-outline-success:hover {
-    background: var(--accent);
-    color: #001b18;
-}
-
-.btn:active {
-    transform: scale(0.96);
-}
-
-/* ===============================
-   FORMS
-================================ */
-input, select, textarea {
-    background: rgba(0,0,0,0.35) !important;
-    border: 1px solid var(--glass-border) !important;
-    border-radius: 14px !important;
-    color: var(--text-main) !important;
-}
-
-input::placeholder {
-    color: #9c9cc9;
-}
-
-input:focus {
-    box-shadow: 0 0 0 2px rgba(111,92,255,.35);
-}
-
-/* ===============================
-   HEADINGS
-================================ */
-h1, h2, h3, h4, h5 {
-    font-weight: 800;
-}
-
-h2, h3 {
-    letter-spacing: -0.3px;
-}
-
-/* ===============================
-   ALERTS
-================================ */
-.alert {
-    border-radius: 14px;
-    background: rgba(255,255,255,0.08);
+    background: rgba(255,255,255,.08);
     border: 1px solid var(--glass-border);
     color: white;
-}
+  }
 
-/* ===============================
-   FOOTER (OPTIONAL)
-================================ */
-footer {
-    color: var(--text-muted);
-    text-align: center;
-    padding: 16px;
+  /* CATEGORY BAR */
+  .category-navbar {
+    position: sticky;
+    top: 64px;
+    z-index: 20;
+    background: rgba(10,5,30,.9);
+    border-bottom: 1px solid var(--glass-border);
+    padding: 10px 0;
+  }
+
+  .category-scroll {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    padding: 0 16px;
+    scrollbar-width: none;
+  }
+
+  .category-scroll::-webkit-scrollbar { display: none; }
+
+  .category-scroll a {
+    white-space: nowrap;
+    padding: 8px 14px;
+    border-radius: 999px;
     font-size: 14px;
-}
+    text-decoration: none;
+    color: var(--text-muted);
+    background: rgba(255,255,255,.06);
+    transition: .2s;
+  }
 
-/* ===============================
-   MOBILE OPTIMIZATION
-================================ */
-@media (max-width: 768px) {
-    .container {
-        padding-left: 14px;
-        padding-right: 14px;
-    }
+  .category-scroll a:hover {
+    color: white;
+    background: var(--primary);
+  }
 
-    h2 {
-        font-size: 22px;
-    }
-}
-</style>
+  /* TEMPLATE CARDS */
+  .template-card {
+    position: relative;
+    border-radius: 18px;
+    overflow: hidden;
+    background: #0b1020;
+    aspect-ratio: 3/4;
+    box-shadow: 0 20px 40px rgba(0,0,0,.45);
+  }
 
+  .template-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .template-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,.85), transparent 55%);
+    opacity: 0;
+    transition: .25s;
+  }
+
+  .template-card:hover .template-overlay {
+    opacity: 1;
+  }
+
+  .template-info {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
+  }
+
+  .template-info h6 {
+    margin: 0;
+    font-weight: 700;
+  }
+
+  .template-info span {
+    font-size: 14px;
+    color: var(--accent);
+  }
+
+  .template-card-link {
+    text-decoration: none;
+    color: inherit;
+  }
+
+  @media (max-width:768px) {
+    .main-container { padding: 16px 12px; }
+  }
+  </style>
 </head>
+
 <body>
-    <div style="text-align:center; margin-top:10px; font-size:14px; color:#bbb;">
-    Marketer's App
-</div>
 
-    <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
-        <div class="container">
-           <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
-    <img src="{{ url_for('static', filename='logo.png') }}"
-         alt="Banner Hub Logo"
-         style="height: 38px; margin-right: 8px;">
+<nav class="navbar navbar-expand-lg navbar-dark sticky-top">
+  <div class="container-fluid px-4">
+    <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
+      <img src="{{ url_for('static', filename='logo.png') }}" style="height:36px" class="me-2">
+      <span style="font-family:Montserrat;font-weight:800">BANNER HUB</span>
+    </a>
 
-    <span style="
-        font-family: 'Montserrat', sans-serif;
-        font-weight: 800;
-        font-size: 22px;
-        letter-spacing: 0.5px;
-        color: #f7f7f7;
-        text-transform: uppercase;
-    ">
-        Banner Hub
-    </span>
-</a>
-
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                        {% if current_user.is_authenticated %}
-        <!-- Wallet balance -->
-        <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('wallet') }}">
-                <span class="badge bg-success" style="font-size: 0.9rem;">
-                    ₹{{ "%.2f"|format(current_user.wallet_balance) }}
-                </span>
-                <span class="d-lg-none ms-2">Wallet Balance</span>
-            </a>
-        </li>
-
-        {% if current_user.is_admin %}
-            <!-- Admin templates page -->
-            <li class="nav-item">
-                <a class="nav-link" href="{{ url_for('admin_templates') }}">Admin</a>
-            </li>
-            <!-- NEW: Admin referrals page -->
-            <li class="nav-item">
-                <a class="nav-link" href="{{ url_for('admin_referrals') }}">Referrals</a>
-            </li>
+    <div class="collapse navbar-collapse show">
+      <ul class="navbar-nav ms-auto align-items-center gap-3">
+        {% if current_user.is_authenticated %}
+          <li><span class="badge bg-success">₹{{ "%.2f"|format(current_user.wallet_balance) }}</span></li>
+          {% if current_user.is_admin %}
+            <li><a class="nav-link" href="{{ url_for('admin_templates') }}">Admin</a></li>
+            <li><a class="nav-link" href="{{ url_for('admin_referrals') }}">Referrals</a></li>
+          {% endif %}
+          <li><a class="nav-link text-danger" href="{{ url_for('logout') }}">Logout</a></li>
         {% endif %}
-
-        <!-- Logout -->
-        <li class="nav-item">
-            <a class="nav-link text-danger" href="{{ url_for('logout') }}">Logout</a>
-        </li>
-    {% else %}
-        <!-- Not logged in: show login/register -->
-        <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('login') }}">Login</a>
-        </li>
-        <li class="nav-item">
-            <a class="btn btn-sm btn-outline-light ms-lg-2 mt-2 mt-lg-0" href="{{ url_for('register') }}">
-                Register
-            </a>
-        </li>
-    {% endif %}
-                </ul>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container mt-4">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show shadow-lg" role="alert" style="border: 1px solid #fff;">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        {% block content %}{% endblock %}
+      </ul>
     </div>
+  </div>
+</nav>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <script>
-    function createSparkle(x, y) {
-        let body = document.querySelector('body');
-        let star = document.createElement('div');
-        star.innerText = '✨';
-        star.style.color = '#00ffd5';
-        star.style.textShadow = '0 0 10px #00ffd5, 0 0 20px #ff00de';
-        star.style.position = 'fixed';
-        star.style.left = x + 'px';
-        star.style.top = y + 'px';
-        star.style.fontSize = Math.random() * 20 + 15 + 'px'; 
-        star.style.pointerEvents = 'none';
-        star.style.animation = 'starFade 0.8s linear forwards'; 
-        star.style.zIndex = '9999';
-        body.appendChild(star);
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="main-container">
+      {% for cat,msg in messages %}
+        <div class="alert alert-{{cat}}">{{ msg }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
 
-        setTimeout(() => star.remove(), 800);
-    }
+{% block content %}{% endblock %}
 
-    // Mouse support
-    document.addEventListener('mousemove', function(e) {
-        // Throttle creation to improve performance
-        if(Math.random() > 0.8) createSparkle(e.clientX, e.clientY);
-    });
-
-    // Touch support (Mobile)
-    document.addEventListener('touchmove', function(e) {
-        let touch = e.touches[0];
-        // Create sparkles more frequently on touch for better effect
-        if(Math.random() > 0.5) createSparkle(touch.clientX, touch.clientY);
-    }, { passive: true });
-
-    let styleSheet = document.createElement("style");
-    styleSheet.innerText = `
-        @keyframes starFade {
-            0% { transform: scale(1) rotate(0deg); opacity: 1; }
-            100% { transform: scale(0) rotate(180deg); opacity: 0; }
-        }
-    `;
-    document.head.appendChild(styleSheet);
-    </script>
-    
-    {% block extra_js %}{% endblock %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% block extra_js %}{% endblock %}
 </body>
-
 </html>
-
-
-
-
-

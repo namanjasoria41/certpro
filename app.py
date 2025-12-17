@@ -1127,7 +1127,7 @@ def index():
 def category_view(category):
     templates = Template.query.filter_by(category=category).all()
     return render_template(
-        "categories.html",
+        "category.html",
         templates=templates,
         category=category
     )
@@ -1436,6 +1436,7 @@ def delete_template_field(template_id, field_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

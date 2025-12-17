@@ -157,7 +157,13 @@
     <div class="collapse navbar-collapse show">
       <ul class="navbar-nav ms-auto align-items-center gap-3">
         {% if current_user.is_authenticated %}
-          <li><span class="badge bg-success">₹{{ "%.2f"|format(current_user.wallet_balance) }}</span></li>
+          <li><a href="{{ url_for('wallet') }}" class="nav-link">
+    <span class="badge bg-success d-flex align-items-center gap-1">
+      💰 ₹{{ "%.2f"|format(current_user.wallet_balance) }}
+    </span>
+  </a>
+</li>
+
           {% if current_user.is_admin %}
             <li><a class="nav-link" href="{{ url_for('admin_templates') }}">Admin</a></li>
             <li><a class="nav-link" href="{{ url_for('admin_referrals') }}">Referrals</a></li>
@@ -185,3 +191,4 @@
 {% block extra_js %}{% endblock %}
 </body>
 </html>
+

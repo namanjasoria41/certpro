@@ -19,8 +19,8 @@
 
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h4 class="fw-bold">{{ cat }}</h4>
-      <a href="{{ url_for('category', category_name=cat) }}" class="text-muted small">
-        View all →
+      <a href="{{ url_for('category_view', category=cat) }}" class="text-muted small">
+         View all →
       </a>
     </div>
 
@@ -48,4 +48,5 @@
 </div>
 
 {% endblock %}
+
 

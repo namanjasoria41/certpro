@@ -1,52 +1,53 @@
 {% extends "base.html" %}
 
-{% block title %}Templates - Certificate Generator{% endblock %}
+{% block title %}CertPro – Templates{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2>All Templates</h2>
-    {% if current_user.is_authenticated and current_user.is_admin %}
-      <a href="{{ url_for('admin_templates') }}" class="btn btn-outline-secondary">Admin</a>
-    {% endif %}
-  </div>
 
-  {% if templates %}
-  <div class="row g-3">
-    {% for t in templates %}
-    <div class="col-sm-6 col-md-4 col-lg-3">
-      <div class="card h-100 shadow-sm">
-        {% if t.image_path %}
-        <img src="{{ url_for('static', filename='templates/' + t.image_path) }}"
-             class="card-img-top" alt="{{ t.name }}" style="height:160px; object-fit:cover;">
-        {% else %}
-        <div class="bg-light d-flex align-items-center justify-content-center" style="height:160px;">
-          <span class="text-muted">No image</span>
-        </div>
-        {% endif %}
-
-        <div class="card-body d-flex flex-column">
-          <h5 class="card-title mb-1">{{ t.name }}</h5>
-          <p class="card-text text-muted mb-2">{{ t.category or "Uncategorized" }}</p>
-          <p class="mb-3"><strong>₹{{ '%.2f'|format(t.price or 0) }}</strong></p>
-
-          <div class="mt-auto d-flex gap-2">
-            <a href="{{ url_for('fill_template', template_id=t.id) }}"
-               class="btn btn-sm btn-outline-primary">Fill</a>
-
-            <a href="{{ url_for('preview_template', template_id=t.id) }}"
-               class="btn btn-sm btn-outline-success">Preview</a>
-
-            <a href="#" class="btn btn-sm btn-outline-secondary">Details</a>
-          </div>
-        </div>
-      </div>
-    </div>
+<!-- CATEGORY NAVBAR -->
+<div class="container-fluid category-navbar">
+  <div class="category-scroll">
+    {% for cat in categories %}
+      <a href="#cat-{{ cat | replace(' ', '-') }}">{{ cat }}</a>
     {% endfor %}
   </div>
-  {% else %}
-    <div class="alert alert-info">No templates available yet.</div>
-  {% endif %}
 </div>
+
+<!-- TEMPLATE SECTIONS -->
+<div class="container mt-4">
+
+  {% for cat in categories %}
+  <section id="cat-{{ cat | replace(' ', '-') }}" class="mb-5">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h4 class="fw-bold">{{ cat }}</h4>
+      <a href="{{ url_for('category_view', category=cat) }}" class="text-muted small">
+        View all →
+      </a>
+    </div>
+
+    <div class="row g-3">
+      {% for t in templates if t.category == cat %}
+      <div class="col-6 col-md-4 col-lg-3">
+        <a href="{{ url_for('fill_template', template_id=t.id) }}" class="template-card-link">
+          <div class="template-card">
+            <img src="{{ url_for('static', filename='templates/' + t.image_path) }}" alt="{{ t.name }}">
+            <div class="template-overlay">
+              <div class="template-info">
+                <h6>{{ t.name }}</h6>
+                <span>₹{{ '%.0f'|format(t.price or 0) }}</span>
+              </div>
+            </div>
+          </div>
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+
+  </section>
+  {% endfor %}
+
+</div>
+
 {% endblock %}
 

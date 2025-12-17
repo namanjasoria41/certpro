@@ -1,27 +1,25 @@
 {% extends "base.html" %}
-
-{% block title %}CertPro – Templates{% endblock %}
+{% block title %}Templates – Banner Hub{% endblock %}
 
 {% block content %}
 
-<!-- CATEGORY NAVBAR -->
-<div class="container-fluid category-navbar">
+<!-- CATEGORY NAV -->
+<div class="category-navbar">
   <div class="category-scroll">
     {% for cat in categories %}
-      <a href="#cat-{{ cat | replace(' ', '-') }}">{{ cat }}</a>
+      <a href="#cat-{{ cat|replace(' ','-') }}">{{ cat }}</a>
     {% endfor %}
   </div>
 </div>
 
-<!-- TEMPLATE SECTIONS -->
-<div class="container mt-4">
+<div class="main-container">
 
   {% for cat in categories %}
-  <section id="cat-{{ cat | replace(' ', '-') }}" class="mb-5">
+  <section id="cat-{{ cat|replace(' ','-') }}" class="mb-5">
 
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h4 class="fw-bold">{{ cat }}</h4>
-      <a href="{{ url_for('category_view', category=cat) }}" class="text-muted small">
+      <a href="{{ url_for('category', category_name=cat) }}" class="text-muted small">
         View all →
       </a>
     </div>
@@ -31,7 +29,7 @@
       <div class="col-6 col-md-4 col-lg-3">
         <a href="{{ url_for('fill_template', template_id=t.id) }}" class="template-card-link">
           <div class="template-card">
-            <img src="{{ url_for('static', filename='templates/' + t.image_path) }}" alt="{{ t.name }}">
+            <img src="{{ url_for('static', filename='templates/' + t.image_path) }}">
             <div class="template-overlay">
               <div class="template-info">
                 <h6>{{ t.name }}</h6>

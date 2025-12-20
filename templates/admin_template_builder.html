@@ -19,8 +19,13 @@
     </button>
   </div>
 
-  <!-- CANVAS -->
+  <!-- CANVAS AREA -->
   <div class="builder-canvas-area">
+    <img
+      id="templateBg"
+      src="{{ template_image_url }}"
+      alt="Template"
+    />
     <canvas id="builderCanvas"></canvas>
   </div>
 
@@ -34,10 +39,6 @@
       <i class="bi bi-image"></i><span>Rect</span>
     </button>
 
-    <button onclick="enableAddCircleImageMode()" class="tool-btn">
-      <i class="bi bi-record-circle"></i><span>Circle</span>
-    </button>
-
     <button onclick="toggleProperties()" class="tool-btn">
       <i class="bi bi-sliders"></i><span>Props</span>
     </button>
@@ -47,7 +48,7 @@
     </button>
   </div>
 
-  <!-- PROPERTIES PANEL -->
+  <!-- PROPERTIES -->
   <div id="propertiesPanel" class="drawer-panel">
     <div class="drawer-header">
       <span>Field Properties</span>
@@ -72,7 +73,7 @@
     </div>
   </div>
 
-  <!-- LAYERS PANEL -->
+  <!-- LAYERS -->
   <div id="layersPanel" class="drawer-panel">
     <div class="drawer-header">
       <span>Layers</span>
@@ -94,7 +95,6 @@
 
 <script>
   const TEMPLATE_ID = {{ template.id }};
-  const TEMPLATE_URL = "{{ template_image_url }}";
   const EXISTING_FIELDS = {{ fields | tojson }};
 </script>
 

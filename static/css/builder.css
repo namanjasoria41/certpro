@@ -1,54 +1,54 @@
 .builder-wrapper {
-  position: relative;
-  height: calc(100vh - 80px);
+  height: calc(100vh - 120px);
   display: flex;
   flex-direction: column;
-  background: #12001c;
 }
 
+/* TOP BAR */
 .builder-topbar {
-  height: 56px;
+  height: 54px;
+  background: rgba(20,10,40,.9);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
-  background: rgba(0,0,0,0.4);
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-}
-
-.builder-title {
-  font-weight: 700;
+  color: white;
 }
 
 .save-btn {
-  background: linear-gradient(135deg,#6f5cff,#8b7bff);
+  background: #6f5cff;
   border: none;
-  color: white;
-  padding: 8px 14px;
   border-radius: 10px;
+  padding: 8px 14px;
+  color: white;
 }
 
+/* CANVAS */
 .builder-canvas-area {
   flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  position: relative;
   overflow: auto;
-  pointer-events: auto;
+  background: #0b1020;
+}
+
+#templateBg {
+  display: block;
+  max-width: 100%;
 }
 
 #builderCanvas {
-  background: #000;
-  pointer-events: auto !important;
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
+/* TOOLBAR */
 .builder-toolbar {
   height: 64px;
+  background: rgba(10,5,30,.95);
   display: flex;
-  justify-content: center;
-  gap: 24px;
-  background: rgba(0,0,0,0.45);
-  border-top: 1px solid rgba(255,255,255,0.1);
+  justify-content: space-around;
+  align-items: center;
 }
 
 .tool-btn {
@@ -56,28 +56,29 @@
   border: none;
   color: white;
   text-align: center;
-  font-size: 12px;
 }
 
+/* DRAWERS */
 .drawer-panel {
   position: fixed;
   bottom: -100%;
   left: 0;
   right: 0;
-  background: #0f0120;
-  border-top: 1px solid rgba(255,255,255,0.1);
+  background: #120a25;
+  height: 260px;
   transition: .3s;
-  z-index: 200;
+  z-index: 999;
 }
 
 .drawer-panel.open {
-  bottom: 0;
+  bottom: 64px;
 }
 
 .drawer-header {
-  padding: 12px;
   display: flex;
   justify-content: space-between;
+  padding: 12px;
+  color: white;
 }
 
 .drawer-body {
@@ -88,18 +89,14 @@
   width: 100%;
   margin-bottom: 10px;
   padding: 8px;
-  border-radius: 8px;
-  background: rgba(255,255,255,0.1);
-  border: none;
-  color: white;
 }
 
 .delete-btn {
-  width: 100%;
-  background: #ff4d4d;
+  background: #ff3b3b;
   border: none;
-  padding: 10px;
-  border-radius: 10px;
+  padding: 8px;
+  width: 100%;
   color: white;
 }
+
 

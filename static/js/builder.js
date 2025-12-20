@@ -1,135 +1,145 @@
 let canvas;
-let activeObject = null;
+let bgImage = null;
+let selectedObject = null;
 
-window.onload = () => {
-  canvas = new fabric.Canvas("builderCanvas", {
-    preserveObjectStacking: true,
-    selection: true
-  });
+/* ================= INIT ================= */
+window.addEventListener("load", () => {
+    const img = new Image();
+    img.onload = () => initCanvas(img);
+    img.src = TEMPLATE_URL;
+});
 
-  // Load template image at REAL size (no scaling)
-  fabric.Image.fromURL(TEMPLATE_URL, img => {
-    img.selectable = false;
-    img.evented = false;
+/* ================= CANVAS ================= */
+function initCanvas(img) {
+    canvas = new fabric.Canvas("builderCanvas", {
+        selection: true,
+        preserveObjectStacking: true
+    });
 
     canvas.setWidth(img.width);
     canvas.setHeight(img.height);
 
-    canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas), {
-      scaleX: 1,
-      scaleY: 1
+    bgImage = new fabric.Image(img, {
+        selectable: false,
+        evented: false
     });
-  });
 
-  loadExistingFields();
+    canvas.setBackgroundImage(bgImage, canvas.renderAll.bind(canvas));
 
-  canvas.on("selection:created", e => activeObject = e.target);
-  canvas.on("selection:updated", e => activeObject = e.target);
-  canvas.on("selection:cleared", () => activeObject = null);
-};
+    loadExistingFields();
+    bindCanvasEvents();
+}
 
-/* ======================
-   LOAD EXISTING FIELDS
-====================== */
+/* ================= LOAD FIELDS ================= */
 function loadExistingFields() {
-  EXISTING_FIELDS.forEach(f => {
-    if (f.field_type === "image") {
-      const rect = new fabric.Rect({
-        left: f.x,
-        top: f.y,
-        width: f.width || 120,
-        height: f.height || 120,
-        fill: "rgba(255,255,255,0.15)",
-        stroke: "#22c55e",
-        strokeDashArray: [6, 4],
-        objectType: "image",
-        fieldName: f.field_name,
-        shape: f.shape || "rect"
-      });
-      canvas.add(rect);
-    } else {
-      const text = new fabric.Textbox(f.field_name, {
-        left: f.x,
-        top: f.y,
-        fontSize: f.font_size || 28,
-        fill: f.color || "#ffffff",
-        objectType: "text",
-        fieldName: f.field_name,
-        editable: false
-      });
-      canvas.add(text);
+    (EXISTING_FIELDS || []).forEach(f => {
+        const obj = createObjectFromField(f);
+        if (obj) canvas.add(obj);
+    });
+    refreshLayers();
+}
+
+/* ================= FIELD FACTORY ================= */
+function createObjectFromField(f) {
+    const type = f.field_type || f.type || "text";
+
+    if (type === "image") {
+        const rect = new fabric.Rect({
+            left: f.x || 0,
+            top: f.y || 0,
+            width: f.width || 120,
+            height: f.height || 120,
+            fill: "rgba(255,255,255,0.15)",
+            stroke: "#00ffd5",
+            strokeDashArray: [6, 6],
+        });
+
+        rect.fieldMeta = normalizeMeta(f, "image");
+        return rect;
     }
-  });
+
+    const text = new fabric.Textbox("Text", {
+        left: f.x || 0,
+        top: f.y || 0,
+        fontSize: f.font_size || 24,
+        fill: f.color || "#ffffff",
+        width: 300
+    });
+
+    text.fieldMeta = normalizeMeta(f, "text");
+    return text;
 }
 
-/* ======================
-   ADD TEXT FIELD
-====================== */
+/* ================= META NORMALIZER ================= */
+function normalizeMeta(f, type) {
+    return {
+        field_name: f.field_name || f.name || "",
+        field_type: type,
+        font_size: f.font_size || f.size || 24,
+        color: f.color || "#ffffff",
+        width: f.width || null,
+        height: f.height || null,
+        shape: f.shape || "rect"
+    };
+}
+
+/* ================= EVENTS ================= */
+function bindCanvasEvents() {
+    canvas.on("selection:created", e => select(e.selected[0]));
+    canvas.on("selection:updated", e => select(e.selected[0]));
+    canvas.on("selection:cleared", () => selectedObject = null);
+}
+
+function select(obj) {
+    selectedObject = obj;
+    document.getElementById("propName").value = obj.fieldMeta.field_name || "";
+    document.getElementById("propFontSize").value = obj.fontSize || 24;
+    document.getElementById("propColor").value = obj.fill || "#ffffff";
+}
+
+/* ================= ADD OBJECTS ================= */
 function enableAddTextMode() {
-  const t = new fabric.Textbox("Text", {
-    left: 100,
-    top: 100,
-    fontSize: 28,
-    fill: "#ffffff",
-    objectType: "text",
-    fieldName: "text_" + Date.now()
-  });
-  canvas.add(t).setActiveObject(t);
+    const t = new fabric.Textbox("Text", {
+        left: 80, top: 80, fontSize: 24, fill: "#ffffff"
+    });
+    t.fieldMeta = normalizeMeta({}, "text");
+    canvas.add(t).setActiveObject(t);
 }
 
-/* ======================
-   ADD IMAGE FIELD
-====================== */
 function enableAddImageMode(circle = false) {
-  const obj = circle
-    ? new fabric.Circle({
-        radius: 60,
+    const r = new fabric.Rect({
+        left: 100, top: 100, width: 120, height: 120,
         fill: "rgba(255,255,255,0.15)",
-        stroke: "#22c55e",
-        strokeDashArray: [6, 4]
-      })
-    : new fabric.Rect({
-        width: 120,
-        height: 120,
-        fill: "rgba(255,255,255,0.15)",
-        stroke: "#22c55e",
-        strokeDashArray: [6, 4]
-      });
-
-  obj.left = 120;
-  obj.top = 120;
-  obj.objectType = "image";
-  obj.shape = circle ? "circle" : "rect";
-  obj.fieldName = "image_" + Date.now();
-
-  canvas.add(obj).setActiveObject(obj);
+        stroke: "#00ffd5", strokeDashArray: [6,6]
+    });
+    r.fieldMeta = normalizeMeta({ shape: circle ? "circle" : "rect" }, "image");
+    canvas.add(r).setActiveObject(r);
 }
 
-/* ======================
-   SAVE TEMPLATE FIELDS
-====================== */
+/* ================= SAVE ================= */
 function saveTemplate() {
-  const payload = {
-    fields: canvas.getObjects().map(o => ({
-      field_name: o.fieldName,
-      field_type: o.objectType,
-      x: Math.round(o.left),
-      y: Math.round(o.top),
-      width: o.width ? Math.round(o.width * o.scaleX) : null,
-      height: o.height ? Math.round(o.height * o.scaleY) : null,
-      font_size: o.fontSize || null,
-      color: o.fill || null,
-      shape: o.shape || null
-    }))
-  };
+    const fields = canvas.getObjects().map(o => ({
+        field_name: o.fieldMeta.field_name,
+        field_type: o.fieldMeta.field_type,
+        x: Math.round(o.left),
+        y: Math.round(o.top),
+        font_size: o.fontSize || o.fieldMeta.font_size,
+        color: o.fill || o.fieldMeta.color,
+        width: o.width,
+        height: o.height,
+        shape: o.fieldMeta.shape
+    }));
 
-  fetch(`/admin/template/${TEMPLATE_ID}/builder`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  })
-    .then(r => r.json())
-    .then(() => alert("Template saved successfully"));
+    fetch("", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fields })
+    }).then(() => alert("Saved"));
 }
 
-
+/* ================= DELETE ================= */
+function deleteSelectedField() {
+    if (!selectedObject) return;
+    canvas.remove(selectedObject);
+    selectedObject = null;
+}

@@ -1,133 +1,83 @@
-/* RESET */
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: radial-gradient(circle at top, #2a0033, #050008);
-  overflow: hidden;
-  font-family: "Inter", system-ui, sans-serif;
-}
-
-/* MAIN WRAPPER */
 .builder-wrapper {
   position: relative;
-  width: 100vw;
-  height: calc(100vh - 70px);
+  height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  background: #12001c;
 }
 
-/* ───────── TOP BAR ───────── */
 .builder-topbar {
-  position: fixed;
-  top: 70px;
-  left: 0;
-  right: 0;
   height: 56px;
-  background: linear-gradient(90deg, #1a001f, #32003c);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 18px;
-  z-index: 1000;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding: 0 16px;
+  background: rgba(0,0,0,0.4);
+  border-bottom: 1px solid rgba(255,255,255,0.1);
 }
 
 .builder-title {
-  color: #fff;
-  font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .save-btn {
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
-  color: #fff;
+  background: linear-gradient(135deg,#6f5cff,#8b7bff);
   border: none;
-  border-radius: 8px;
-  padding: 8px 16px;
-  cursor: pointer;
-  font-weight: 600;
+  color: white;
+  padding: 8px 14px;
+  border-radius: 10px;
 }
 
-.save-btn:hover {
-  opacity: 0.9;
-}
-
-/* ───────── CANVAS AREA ───────── */
 .builder-canvas-area {
-  position: absolute;
-  top: 130px;
-  bottom: 90px;
-  left: 0;
-  right: 0;
+  flex: 1;
   display: flex;
-  align-items: center;
   justify-content: center;
-  z-index: 1;
+  align-items: center;
+  overflow: auto;
+  pointer-events: auto;
 }
 
 #builderCanvas {
-  background: #111;
-  border-radius: 14px;
-  box-shadow: 0 0 40px rgba(0,0,0,0.7);
+  background: #000;
+  pointer-events: auto !important;
 }
 
-/* ───────── BOTTOM TOOLBAR ───────── */
 .builder-toolbar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 80px;
-  background: linear-gradient(90deg, #16001b, #2b0033);
+  height: 64px;
   display: flex;
   justify-content: center;
   gap: 24px;
-  align-items: center;
-  z-index: 1000;
-  border-top: 1px solid rgba(255,255,255,0.08);
+  background: rgba(0,0,0,0.45);
+  border-top: 1px solid rgba(255,255,255,0.1);
 }
 
 .tool-btn {
-  background: transparent;
+  background: none;
   border: none;
-  color: #fff;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  font-size: 13px;
-  cursor: pointer;
+  color: white;
+  text-align: center;
+  font-size: 12px;
 }
 
-.tool-btn i {
-  font-size: 22px;
-  margin-bottom: 4px;
-}
-
-.tool-btn:hover {
-  color: #60a5fa;
-}
-
-/* ───────── DRAWER PANELS ───────── */
 .drawer-panel {
   position: fixed;
-  bottom: 90px;
-  right: 16px;
-  width: 280px;
-  background: #0f0014;
-  border-radius: 14px;
-  box-shadow: 0 0 30px rgba(0,0,0,0.6);
-  display: none;
-  z-index: 2000;
+  bottom: -100%;
+  left: 0;
+  right: 0;
+  background: #0f0120;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  transition: .3s;
+  z-index: 200;
+}
+
+.drawer-panel.open {
+  bottom: 0;
 }
 
 .drawer-header {
+  padding: 12px;
   display: flex;
   justify-content: space-between;
-  padding: 12px;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-  color: #fff;
-  font-weight: 600;
 }
 
 .drawer-body {
@@ -137,44 +87,19 @@ body {
 .drawer-input {
   width: 100%;
   margin-bottom: 10px;
-  padding: 6px;
-  border-radius: 6px;
-  border: none;
-}
-
-.close-drawer {
-  background: none;
-  border: none;
-  color: #fff;
-  cursor: pointer;
-}
-
-/* ───────── LAYERS ───────── */
-.layer-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.layer-list li {
   padding: 8px;
-  background: #1a0022;
-  color: #fff;
-  border-radius: 6px;
-  margin-bottom: 6px;
-  cursor: pointer;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: white;
 }
 
-.layer-list li:hover {
-  background: #2a0033;
+.delete-btn {
+  width: 100%;
+  background: #ff4d4d;
+  border: none;
+  padding: 10px;
+  border-radius: 10px;
+  color: white;
 }
 
-.builder-canvas-area {
-    overflow: auto !important;
-}
-
-.builder-canvas-scroll {
-    min-width: max-content;
-    min-height: max-content;
-    padding: 20px;
-}

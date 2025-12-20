@@ -29,8 +29,8 @@
       <div class="col-6 col-md-4 col-lg-3">
         <a href="{{ url_for('fill_template', template_id=t.id) }}" class="template-card-link">
           <div class="template-card">
-            <img src="{{ url_for('static', filename='templates/' + t.image_path) }}">
-            <div class="template-overlay">
+            <img src="{{ url_for('serve_template_image', template_id=t.id) }}" alt="{{ t.name }}" loading="lazy">
+           <div class="template-overlay">
               <div class="template-info">
                 <h6>{{ t.name }}</h6>
                 <span>₹{{ '%.0f'|format(t.price or 0) }}</span>
@@ -48,5 +48,6 @@
 </div>
 
 {% endblock %}
+
 
 

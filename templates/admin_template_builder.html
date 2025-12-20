@@ -11,7 +11,7 @@
 
 <div class="builder-wrapper">
 
-    <!-- TOP BAR -->
+    <!-- ================= TOP BAR ================= -->
     <div class="builder-topbar">
         <span class="builder-title">Editing: {{ template.name }}</span>
 
@@ -21,13 +21,15 @@
     </div>
 
 
-    <!-- CANVAS AREA (centered perfectly now) -->
+    <!-- ================= CANVAS AREA ================= -->
     <div class="builder-canvas-area">
-        <canvas id="builderCanvas"></canvas>
+        <div class="builder-canvas-scroll">
+            <canvas id="builderCanvas"></canvas>
+        </div>
     </div>
 
 
-    <!-- BOTTOM TOOLBAR -->
+    <!-- ================= BOTTOM TOOLBAR ================= -->
     <div class="builder-toolbar">
 
         <button onclick="enableAddTextMode()" class="tool-btn">
@@ -35,12 +37,12 @@
             <span>Text</span>
         </button>
 
-        <button onclick="enableAddImageMode()" class="tool-btn">
+        <button onclick="enableAddImageMode(false)" class="tool-btn">
             <i class="bi bi-image"></i>
             <span>Rect</span>
         </button>
 
-        <button onclick="enableAddCircleImageMode()" class="tool-btn">
+        <button onclick="enableAddImageMode(true)" class="tool-btn">
             <i class="bi bi-record-circle"></i>
             <span>Circle</span>
         </button>
@@ -58,7 +60,7 @@
     </div>
 
 
-    <!-- PROPERTIES PANEL (Slide-Up Drawer) -->
+    <!-- ================= PROPERTIES PANEL ================= -->
     <div id="propertiesPanel" class="drawer-panel">
 
         <div class="drawer-header">
@@ -70,24 +72,24 @@
 
         <div class="drawer-body">
 
-    <label>Field Name</label>
-    <input id="propName" class="drawer-input" onchange="updateName()">
+            <label>Field Name</label>
+            <input id="propName" class="drawer-input" onchange="updateName()">
 
-    <label>Font Size</label>
-    <input id="propFontSize" type="number" class="drawer-input" onchange="updateFontSize()">
+            <label>Font Size</label>
+            <input id="propFontSize" type="number" class="drawer-input" onchange="updateFontSize()">
 
-    <label>Color</label>
-    <input id="propColor" type="color" class="drawer-input" onchange="updateColor()">
+            <label>Color</label>
+            <input id="propColor" type="color" class="drawer-input" onchange="updateColor()">
 
-    <button class="delete-btn" onclick="deleteSelectedField()">
-        <i class="bi bi-trash"></i> Delete Field
-    </button>
+            <button class="delete-btn" onclick="deleteSelectedField()">
+                <i class="bi bi-trash"></i> Delete Field
+            </button>
 
-</div>
+        </div>
+    </div>
 
 
-
-    <!-- LAYERS PANEL (Slide-Up Drawer) -->
+    <!-- ================= LAYERS PANEL ================= -->
     <div id="layersPanel" class="drawer-panel">
 
         <div class="drawer-header">
@@ -106,8 +108,6 @@
 </div>
 
 {% endblock %}
-
-
 
 {% block extra_js %}
 

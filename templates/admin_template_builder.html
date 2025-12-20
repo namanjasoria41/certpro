@@ -11,115 +11,93 @@
 
 <div class="builder-wrapper">
 
-    <!-- ================= TOP BAR ================= -->
-    <div class="builder-topbar">
-        <span class="builder-title">Editing: {{ template.name }}</span>
+  <!-- TOP BAR -->
+  <div class="builder-topbar">
+    <span class="builder-title">Editing: {{ template.name }}</span>
+    <button class="save-btn" onclick="saveTemplate()">
+      <i class="bi bi-check2-circle"></i> Save
+    </button>
+  </div>
 
-        <button class="save-btn" onclick="saveTemplate()">
-            <i class="bi bi-check2-circle"></i> Save
-        </button>
+  <!-- CANVAS -->
+  <div class="builder-canvas-area">
+    <canvas id="builderCanvas"></canvas>
+  </div>
+
+  <!-- TOOLBAR -->
+  <div class="builder-toolbar">
+    <button onclick="enableAddTextMode()" class="tool-btn">
+      <i class="bi bi-fonts"></i><span>Text</span>
+    </button>
+
+    <button onclick="enableAddImageMode()" class="tool-btn">
+      <i class="bi bi-image"></i><span>Rect</span>
+    </button>
+
+    <button onclick="enableAddCircleImageMode()" class="tool-btn">
+      <i class="bi bi-record-circle"></i><span>Circle</span>
+    </button>
+
+    <button onclick="toggleProperties()" class="tool-btn">
+      <i class="bi bi-sliders"></i><span>Props</span>
+    </button>
+
+    <button onclick="toggleLayers()" class="tool-btn">
+      <i class="bi bi-layers"></i><span>Layers</span>
+    </button>
+  </div>
+
+  <!-- PROPERTIES PANEL -->
+  <div id="propertiesPanel" class="drawer-panel">
+    <div class="drawer-header">
+      <span>Field Properties</span>
+      <button onclick="toggleProperties()" class="close-drawer">
+        <i class="bi bi-x-lg"></i>
+      </button>
     </div>
 
+    <div class="drawer-body">
+      <label>Field Name</label>
+      <input id="propName" class="drawer-input" onchange="updateName()">
 
-    <!-- ================= CANVAS AREA ================= -->
-    <div class="builder-canvas-area">
-        <div class="builder-canvas-scroll">
-            <canvas id="builderCanvas"></canvas>
-        </div>
+      <label>Font Size</label>
+      <input id="propFontSize" type="number" class="drawer-input" onchange="updateFontSize()">
+
+      <label>Color</label>
+      <input id="propColor" type="color" class="drawer-input" onchange="updateColor()">
+
+      <button class="delete-btn" onclick="deleteSelectedField()">
+        <i class="bi bi-trash"></i> Delete Field
+      </button>
     </div>
+  </div>
 
-
-    <!-- ================= BOTTOM TOOLBAR ================= -->
-    <div class="builder-toolbar">
-
-        <button onclick="enableAddTextMode()" class="tool-btn">
-            <i class="bi bi-fonts"></i>
-            <span>Text</span>
-        </button>
-
-        <button onclick="enableAddImageMode(false)" class="tool-btn">
-            <i class="bi bi-image"></i>
-            <span>Rect</span>
-        </button>
-
-        <button onclick="enableAddImageMode(true)" class="tool-btn">
-            <i class="bi bi-record-circle"></i>
-            <span>Circle</span>
-        </button>
-
-        <button onclick="toggleProperties()" class="tool-btn">
-            <i class="bi bi-sliders"></i>
-            <span>Props</span>
-        </button>
-
-        <button onclick="toggleLayers()" class="tool-btn">
-            <i class="bi bi-layers"></i>
-            <span>Layers</span>
-        </button>
-
+  <!-- LAYERS PANEL -->
+  <div id="layersPanel" class="drawer-panel">
+    <div class="drawer-header">
+      <span>Layers</span>
+      <button onclick="toggleLayers()" class="close-drawer">
+        <i class="bi bi-x-lg"></i>
+      </button>
     </div>
-
-
-    <!-- ================= PROPERTIES PANEL ================= -->
-    <div id="propertiesPanel" class="drawer-panel">
-
-        <div class="drawer-header">
-            <span>Field Properties</span>
-            <button class="close-drawer" onclick="toggleProperties()">
-                <i class="bi bi-x-lg"></i>
-            </button>
-        </div>
-
-        <div class="drawer-body">
-
-            <label>Field Name</label>
-            <input id="propName" class="drawer-input" onchange="updateName()">
-
-            <label>Font Size</label>
-            <input id="propFontSize" type="number" class="drawer-input" onchange="updateFontSize()">
-
-            <label>Color</label>
-            <input id="propColor" type="color" class="drawer-input" onchange="updateColor()">
-
-            <button class="delete-btn" onclick="deleteSelectedField()">
-                <i class="bi bi-trash"></i> Delete Field
-            </button>
-
-        </div>
+    <div class="drawer-body">
+      <ul id="layerList" class="layer-list"></ul>
     </div>
-
-
-    <!-- ================= LAYERS PANEL ================= -->
-    <div id="layersPanel" class="drawer-panel">
-
-        <div class="drawer-header">
-            <span>Layers</span>
-            <button class="close-drawer" onclick="toggleLayers()">
-                <i class="bi bi-x-lg"></i>
-            </button>
-        </div>
-
-        <div class="drawer-body">
-            <ul id="layerList" class="layer-list"></ul>
-        </div>
-
-    </div>
+  </div>
 
 </div>
 
 {% endblock %}
 
 {% block extra_js %}
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js"></script>
 
 <script>
-    const TEMPLATE_ID = {{ template.id }};
-    const TEMPLATE_URL = "{{ template_image_url }}";
-    const EXISTING_FIELDS = {{ fields | tojson }};
+  const TEMPLATE_ID = {{ template.id }};
+  const TEMPLATE_URL = "{{ template_image_url }}";
+  const EXISTING_FIELDS = {{ fields | tojson }};
 </script>
 
 <script src="{{ url_for('static', filename='js/builder.js') }}"></script>
-
 {% endblock %}
 

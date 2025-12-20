@@ -20,8 +20,10 @@
          class="template-card-link">
 
         <div class="template-card">
-          <img src="{{ url_for('static', filename='templates/' + template.image_path) }}"
-               alt="{{ template.name }}">
+          <img src="{{ url_for('serve_template_image', template_id=t.id) }}" 
+     alt="{{ t.name }}"
+     loading="lazy">
+
 
           <div class="template-overlay">
             <div class="template-info">
@@ -41,4 +43,5 @@
 
 </div>
 {% endblock %}
+
 

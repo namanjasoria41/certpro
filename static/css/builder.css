@@ -168,3 +168,13 @@ body {
 .layer-list li:hover {
   background: #2a0033;
 }
+
+.builder-canvas-area {
+    overflow: auto !important;
+}
+
+.builder-canvas-scroll {
+    min-width: max-content;
+    min-height: max-content;
+    padding: 20px;
+}

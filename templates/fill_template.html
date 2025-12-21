@@ -1,127 +1,140 @@
 {% extends "base.html" %}
+
 {% block title %}Fill Template — {{ template.name }}{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
 
 <style>
+/* ================= BASE ================= */
 body {
-    background: linear-gradient(180deg,#041a47,#00112c);
-    color:white;
+    background: linear-gradient(180deg, #041a47, #00112c);
+    color: white;
 }
 
 .container-box {
-    max-width: 480px;
+    max-width: 460px;
     margin: auto;
-    padding: 20px;
+    padding: 20px 16px 120px;
 }
 
-/* IMAGE BOX */
+/* ================= HEADER ================= */
+.header-title {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 800;
+}
+
+.subtitle {
+    text-align: center;
+    font-size: 14px;
+    opacity: .8;
+    margin-bottom: 18px;
+}
+
+/* ================= FORM ================= */
+.field-label {
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 14px;
+}
+
+.input-line {
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid rgba(255,255,255,.3);
+    padding: 8px 0;
+    color: white;
+    outline: none;
+    font-size: 15px;
+}
+
+/* ================= IMAGE UPLOAD ================= */
 .photo-upload-box {
     width: 140px;
     height: 140px;
+    margin: 12px auto;
     border: 2px dashed rgba(255,255,255,.4);
     border-radius: 14px;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    cursor:pointer;
-    margin: 16px auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
 }
+
 .photo-upload-box img {
-    width:100%;
-    height:100%;
-    object-fit:cover;
-    border-radius:14px;
-    display:none;
+    width: 100%;
+    height: 100%;
+    border-radius: 14px;
+    object-fit: cover;
+    display: none;
 }
 
-/* INPUT */
-.input-line {
-    width:100%;
-    background:transparent;
-    border:none;
-    border-bottom:2px solid rgba(255,255,255,.3);
-    color:white;
-    padding:6px 0;
-    margin-bottom:14px;
+.upload-icon {
+    font-size: 42px;
+    opacity: .7;
 }
 
-/* BUTTON */
-.create-btn {
-    width:100%;
-    padding:14px;
-    background:linear-gradient(90deg,#ffb000,#ff9000);
-    border:none;
-    border-radius:12px;
-    font-size:18px;
-    font-weight:700;
+/* ================= STICKY SUBMIT ================= */
+.sticky-submit {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 12px;
+    background: rgba(5,10,30,.95);
+    border-top: 1px solid rgba(255,255,255,.12);
+    z-index: 3000;
 }
 
-/* ===== CROP SCREEN ===== */
-.crop-screen {
-    position:fixed;
-    inset:0;
-    background:#0b1020;
-    z-index:9999;
-    display:none;
-    flex-direction:column;
+.sticky-submit button {
+    width: 100%;
+    padding: 14px;
+    font-size: 18px;
+    font-weight: 800;
+    border-radius: 14px;
+    border: none;
+    background: linear-gradient(90deg,#ffb000,#ff9000);
+    color: #000;
 }
 
-.crop-header {
-    padding:12px;
-    font-weight:700;
-    text-align:center;
-    border-bottom:1px solid rgba(255,255,255,.1);
+/* ================= CROPPER FULL SCREEN ================= */
+.cropper-modal {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    display: none;
+    z-index: 5000;
+    flex-direction: column;
 }
 
-.crop-body {
-    display:flex;
-    gap:12px;
-    padding:12px;
-    flex:1;
+.cropper-header {
+    padding: 12px;
+    text-align: center;
+    font-weight: 700;
 }
 
-.crop-left {
-    flex:2;
-}
-.crop-right {
-    flex:1;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:10px;
+.cropper-body {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.preview-box {
-    width:140px;
-    height:140px;
-    border-radius:14px;
-    overflow:hidden;
-    border:2px solid #ffb000;
-}
-.preview-box.circle {
-    border-radius:50%;
+.cropper-footer {
+    padding: 12px;
+    display: flex;
+    gap: 10px;
 }
 
-.preview-box img {
-    width:100%;
-    height:100%;
-    object-fit:cover;
-}
-
-.crop-footer {
-    padding:12px;
-    display:flex;
-    gap:10px;
-}
-
-.crop-footer button {
-    flex:1;
-    padding:10px;
-    border:none;
-    border-radius:10px;
-    font-weight:600;
+.cropper-footer button {
+    flex: 1;
+    padding: 12px;
+    border-radius: 12px;
+    font-weight: 700;
+    border: none;
 }
 </style>
 {% endblock %}
@@ -129,57 +142,64 @@ body {
 {% block content %}
 <div class="container-box">
 
-<h4 style="text-align:center">{{ template.name }}</h4>
+    <div class="header-title">{{ template.name }}</div>
+    <div class="subtitle">Fill details & upload photo</div>
 
-<form method="POST" action="{{ url_for('fill_template', template_id=template.id) }}">
+    <form method="POST">
 
-{% for f in fields %}
+        {% for f in fields %}
 
-{% if f.field_type == "text" %}
-<label>{{ f.field_name|capitalize }}</label>
-<input class="input-line" name="{{ f.field_name }}">
-{% endif %}
+        {% if f.field_type == "text" %}
+            <label class="field-label">{{ f.field_name|capitalize }}</label>
+            <input type="text"
+                   name="{{ f.field_name }}"
+                   class="input-line"
+                   placeholder="Enter {{ f.field_name }}">
+        {% endif %}
 
-{% if f.field_type == "image" %}
-<label>{{ f.field_name|capitalize }}</label>
+        {% if f.field_type == "image" %}
+            <label class="field-label">{{ f.field_name|capitalize }}</label>
 
-<div class="photo-upload-box" onclick="openFile('{{ f.field_name }}')">
-    <img id="final_{{ f.field_name }}">
-    <span>📷</span>
-</div>
-
-<input type="file" id="file_{{ f.field_name }}" hidden accept="image/*"
-       onchange="startCrop(event,'{{ f.field_name }}','{{ f.shape }}')">
-
-<input type="hidden" name="{{ f.field_name }}" id="hidden_{{ f.field_name }}">
-{% endif %}
-
-{% endfor %}
-
-<button class="create-btn">CREATE</button>
-</form>
-</div>
-
-<!-- ===== FULL CROP SCREEN ===== -->
-<div id="cropScreen" class="crop-screen">
-    <div class="crop-header">Adjust Image</div>
-
-    <div class="crop-body">
-        <div class="crop-left">
-            <img id="cropImage" style="max-width:100%">
-        </div>
-
-        <div class="crop-right">
-            <div id="previewBox" class="preview-box">
-                <img id="livePreview">
+            <div class="photo-upload-box"
+                 onclick="document.getElementById('file_{{ f.field_name }}').click()">
+                <img id="preview_{{ f.field_name }}">
+                <span class="upload-icon">📷</span>
             </div>
-            <small>Live Preview</small>
+
+            <input type="file"
+                   id="file_{{ f.field_name }}"
+                   accept="image/*"
+                   hidden
+                   onchange="openCropper(event,'{{ f.field_name }}','{{ f.shape }}')">
+
+            <input type="hidden"
+                   name="{{ f.field_name }}"
+                   id="hidden_{{ f.field_name }}">
+        {% endif %}
+
+        {% endfor %}
+
+        <!-- STICKY SUBMIT -->
+        <div class="sticky-submit">
+            <button type="submit">SAVE & GENERATE</button>
         </div>
+
+    </form>
+</div>
+
+<!-- ================= CROPPER ================= -->
+<div id="cropperModal" class="cropper-modal">
+    <div class="cropper-header">Adjust Photo</div>
+
+    <div class="cropper-body">
+        <img id="cropperImage" style="max-width:100%;max-height:100%;">
     </div>
 
-    <div class="crop-footer">
-        <button onclick="cancelCrop()" style="background:#444;color:white">Cancel</button>
-        <button onclick="applyCrop()" style="background:#ffb000">Apply</button>
+    <div class="cropper-footer">
+        <button onclick="cropper.zoom(0.1)">Zoom +</button>
+        <button onclick="cropper.zoom(-0.1)">Zoom −</button>
+        <button onclick="applyCrop()" style="background:#00ffb3">Apply</button>
+        <button onclick="closeCropper()" style="background:#ff5555">Cancel</button>
     </div>
 </div>
 {% endblock %}
@@ -190,37 +210,24 @@ body {
 <script>
 let cropper, currentField, currentShape;
 
-function openFile(field) {
-    const i = document.getElementById("file_"+field);
-    i.value="";
-    i.click();
-}
-
-function startCrop(e, field, shape) {
+function openCropper(event, field, shape) {
     currentField = field;
     currentShape = shape;
 
-    const file = e.target.files[0];
-    if(!file) return;
-
+    const file = event.target.files[0];
     const reader = new FileReader();
-    reader.onload = ev => {
-        document.getElementById("cropScreen").style.display="flex";
-        document.getElementById("cropImage").src = ev.target.result;
-        document.getElementById("livePreview").src = ev.target.result;
 
-        const pb = document.getElementById("previewBox");
-        pb.classList.toggle("circle", shape==="circle");
+    reader.onload = e => {
+        document.getElementById("cropperImage").src = e.target.result;
+        document.getElementById("cropperModal").style.display = "flex";
 
-        if(cropper) cropper.destroy();
-        cropper = new Cropper(cropImage,{
-            aspectRatio: shape==="circle"?1:NaN,
-            viewMode:1,
-            autoCropArea:1,
-            crop(){
-                const canvas = cropper.getCroppedCanvas({width:300,height:300});
-                livePreview.src = canvas.toDataURL();
-            }
+        if (cropper) cropper.destroy();
+
+        cropper = new Cropper(cropperImage, {
+            aspectRatio: shape === "circle" ? 1 : NaN,
+            viewMode: 1,
+            autoCropArea: 1,
+            background: false
         });
     };
     reader.readAsDataURL(file);
@@ -229,32 +236,32 @@ function startCrop(e, field, shape) {
 function applyCrop() {
     let canvas = cropper.getCroppedCanvas();
 
-    if(currentShape==="circle"){
-        const s = Math.min(canvas.width,canvas.height);
+    if (currentShape === "circle") {
+        const size = Math.min(canvas.width, canvas.height);
         const c = document.createElement("canvas");
-        c.width=s; c.height=s;
-        const ctx=c.getContext("2d");
+        c.width = size;
+        c.height = size;
+        const ctx = c.getContext("2d");
+
         ctx.beginPath();
-        ctx.arc(s/2,s/2,s/2,0,Math.PI*2);
+        ctx.arc(size/2,size/2,size/2,0,Math.PI*2);
         ctx.clip();
-        ctx.drawImage(canvas,0,0,s,s);
-        canvas=c;
+        ctx.drawImage(canvas,0,0,size,size);
+        canvas = c;
     }
 
     const base64 = canvas.toDataURL("image/png");
-    document.getElementById("final_"+currentField).src = base64;
-    document.getElementById("final_"+currentField).style.display="block";
+
+    document.getElementById("preview_"+currentField).src = base64;
+    document.getElementById("preview_"+currentField).style.display = "block";
     document.getElementById("hidden_"+currentField).value = base64;
 
-    closeCrop();
+    closeCropper();
 }
 
-function cancelCrop(){ closeCrop(); }
-
-function closeCrop(){
-    document.getElementById("cropScreen").style.display="none";
-    if(cropper) cropper.destroy();
-    cropper=null;
+function closeCropper() {
+    document.getElementById("cropperModal").style.display = "none";
+    if (cropper) cropper.destroy();
 }
 </script>
 {% endblock %}

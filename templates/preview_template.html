@@ -1,131 +1,29 @@
 {% extends "base.html" %}
-
-{% block title %}Preview Certificate — {{ template.name }}{% endblock %}
-
-{% block extra_css %}
-<style>
-    .certificate-wrapper {
-        position: relative;
-        display: inline-block;
-        max-width: 100%;
-        width: 100%;
-        border-radius: 12px;
-        overflow: hidden;
-    }
-
-    .certificate-image {
-        width: 100%;
-        height: auto;
-        display: block;
-    }
-
-    .field-overlay {
-        position: absolute;
-        white-space: nowrap;
-        pointer-events: none;
-        font-weight: 400;
-    }
-
-    .action-buttons {
-        margin-top: 25px;
-    }
-</style>
-{% endblock %}
-
+{% block title %}Preview{% endblock %}
 
 {% block content %}
+<div class="main-container text-center">
 
-<div class="container mt-4">
+  <h3>Preview</h3>
 
-    <h2 class="text-center mb-4">{{ template.name }} — Preview</h2>
+  <img src="{{ preview_url }}"
+       class="img-fluid rounded shadow-lg my-3">
 
-    <div class="d-flex justify-content-center">
-        <div class="certificate-wrapper" id="certWrapper">
+  <h4 class="mt-2">₹{{ template.price }}</h4>
 
-            <!-- Background Certificate Template -->
-            <img src="{{ preview_url }}"
-                 class="certificate-image"
-                 id="certificateImage">
+  <a href="{{ url_for('fill_template', template_id=template.id) }}"
+     class="btn btn-outline-secondary w-100 mt-2">
+    Edit
+  </a>
 
-            <!-- Dynamic overlay fields -->
-            {% for f in fields %}
-            <div class="field-overlay"
-                 id="field_{{ f.name }}"
-                 style="
-                    top: {{ f.y_scaled }}px;
-                    left: {{ f.x_scaled }}px;
-                    font-size: {{ f.font_size_scaled }}px;
-                    color: {{ f.color }};
-                    font-family: '{{ f.font_family }}';
-                    text-align: {{ f.align }};
-                 ">
-                {{ filled_values[f.name] if filled_values[f.name] else '' }}
-            </div>
-            {% endfor %}
-
-        </div>
-    </div>
-
-    <!-- Buttons -->
-    <div class="d-flex justify-content-center action-buttons">
-        <a href="{{ url_for('fill_template', template_id=template.id) }}" 
-           class="btn btn-secondary mx-2">
-            Edit Details
-        </a>
-
-        <button class="btn btn-success mx-2" id="downloadPngBtn">
-            Download PNG
-        </button>
-
-        <button class="btn btn-primary mx-2" id="downloadPdfBtn">
-            Download PDF
-        </button>
-    </div>
+  <form method="POST" action="{{ url_for('start_payment', template_id=template.id) }}">
+    <button class="btn btn-primary w-100 mt-3">
+      Pay & Download
+    </button>
+  </form>
 
 </div>
-
-
-
-{% block extra_js %}
-<script>
-    // ------------------------------------------------------------
-    // Convert HTML preview into PNG using html2canvas
-    // ------------------------------------------------------------
-    document.getElementById("downloadPngBtn").onclick = function () {
-        html2canvas(document.getElementById("certWrapper")).then(canvas => {
-            const link = document.createElement("a");
-            link.download = "certificate.png";
-            link.href = canvas.toDataURL();
-            link.click();
-        });
-    };
-
-
-    // ------------------------------------------------------------
-    // Download PDF (uses your new /template/<id>/pdf route)
-    // ------------------------------------------------------------
-    const filledValues = {{ filled_values | tojson }};
-
-    document.getElementById("downloadPdfBtn").onclick = function () {
-        fetch("/template/{{ template.id }}/pdf", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ values: filledValues })
-        })
-        .then(r => r.json())
-        .then(res => {
-            if (res.status === "ok") {
-                window.location.href = res.url;
-            } else {
-                alert("PDF generation failed");
-            }
-        });
-    };
-</script>
-
-<script src="{{ url_for('static', filename='js/html2canvas.min.js') }}"></script>
 {% endblock %}
 
-{% endblock %}
 
 

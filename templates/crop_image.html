@@ -51,10 +51,11 @@ document.getElementById("upload").onchange = e => {
 function saveCrop() {
   const canvas = cropper.getCroppedCanvas();
   fetch("{{ url_for('save_cropped_image',
-          template_id=template.id, field=field) }}", {
-    method: "POST",
-    body: canvas.toDataURL("image/png")
-  }).then(() => window.history.back());
+    template_id=template.id,
+    field=field) }}", {
+  method: "POST",
+  body: canvas.toDataURL("image/png")
+});
 }
 </script>
 {% endblock %}

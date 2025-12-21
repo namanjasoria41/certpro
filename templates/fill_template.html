@@ -3,258 +3,162 @@
 {% block title %}Fill Template — {{ template.name }}{% endblock %}
 
 {% block extra_css %}
-
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
-
 <style>
+body {
+    background: linear-gradient(180deg, #041a47, #00112c);
+    color: white;
+}
 
-    body {
-        background: linear-gradient(180deg, #041a47, #00112c);
-        color: white;
-    }
+/* MAIN */
+.container-box {
+    padding: 20px;
+    max-width: 450px;
+    margin: auto;
+}
 
-    .container-box {
-        padding: 20px;
-        max-width: 450px;
-        margin: auto;
-    }
+/* HEADER */
+.header-title {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+}
+.subtitle {
+    text-align: center;
+    font-size: 14px;
+    opacity: .8;
+}
 
-    /* HEADER */
-    .header-title {
-        text-align: center;
-        font-size: 22px;
-        font-weight: 700;
-        margin-top: 10px;
-    }
+/* INPUTS */
+.field-label {
+    margin-top: 12px;
+    font-size: 14px;
+    font-weight: 600;
+}
+.input-line {
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid rgba(255,255,255,.3);
+    padding: 8px 0;
+    color: white;
+    outline: none;
+    font-size: 15px;
+}
 
-    .subtitle {
-        text-align: center;
-        font-size: 14px;
-        opacity: .8;
-    }
+/* IMAGE BOX */
+.photo-upload-box {
+    margin: 16px auto;
+    width: 130px;
+    height: 130px;
+    border: 2px dashed rgba(255,255,255,.4);
+    border-radius: 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    position: relative;
+}
+.photo-upload-box img {
+    width: 100%;
+    height: 100%;
+    border-radius: 12px;
+    object-fit: cover;
+    display: none;
+}
+.upload-icon {
+    font-size: 40px;
+    opacity: .7;
+}
 
-    /* TOGGLE BUTTONS */
-    .toggle-box {
-        display: flex;
-        background: rgba(255,255,255,0.1);
-        border-radius: 12px;
-        margin: 20px 0;
-    }
+/* BUTTON */
+.create-btn {
+    width: 100%;
+    margin-top: 20px;
+    padding: 14px;
+    background: linear-gradient(90deg,#ffb000,#ff9000);
+    border: none;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 18px;
+}
 
-    .toggle-btn {
-        flex: 1;
-        padding: 10px;
-        text-align: center;
-        cursor: pointer;
-        font-weight: 600;
-        border-radius: 12px;
-        transition: .2s;
-    }
-
-    .active-tab {
-        background: #ff9c00;
-        color: #000;
-    }
-
-    /* TOP UPLINES SECTION */
-    .uplines-box {
-        background: rgba(255,255,255,0.08);
-        padding: 12px;
-        border-radius: 12px;
-        margin-bottom: 16px;
-    }
-
-    .uplines-list {
-        display: flex;
-        gap: 10px;
-        overflow-x: auto;
-    }
-
-    .uplines-item {
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
-        border: 2px solid #ffb300;
-        overflow: hidden;
-    }
-
-    .uplines-item img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-
-    .plus-btn {
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
-        background: rgba(255,255,255,0.15);
-        color: white;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        font-size: 26px;
-        cursor: pointer;
-    }
-
-    /* FORM INPUTS */
-    .field-label {
-        margin-top: 10px;
-        font-size: 14px;
-        font-weight: 600;
-    }
-
-    .input-line {
-        width: 100%;
-        background: transparent;
-        border: none;
-        border-bottom: 2px solid rgba(255,255,255,0.3);
-        padding: 8px 0;
-        color: white;
-        outline: none;
-        margin-bottom: 15px;
-        font-size: 15px;
-    }
-
-    /* IMAGE UPLOAD BOX */
-    .photo-upload-box {
-        margin: 20px auto;
-        width: 130px;
-        height: 130px;
-        border: 2px dashed rgba(255,255,255,0.4);
-        border-radius: 12px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        flex-direction: column;
-        cursor: pointer;
-    }
-
-    .photo-upload-box img {
-        width: 100%;
-        height: 100%;
-        border-radius: 12px;
-        object-fit: cover;
-        display: none;
-    }
-
-    .upload-icon {
-        font-size: 40px;
-        opacity: 0.7;
-    }
-
-    /* CREATE BUTTON */
-    .create-btn {
-        width: 100%;
-        margin-top: 20px;
-        padding: 14px;
-        background: linear-gradient(90deg, #ffb000, #ff9000);
-        border: none;
-        border-radius: 12px;
-        color: #000;
-        font-weight: 700;
-        font-size: 18px;
-        cursor: pointer;
-    }
-
-    /* CROPPER MODAL */
-    .cropper-modal {
-        position: fixed;
-        top: 0; left: 0;
-        width: 100%; height: 100%;
-        background: rgba(0,0,0,0.8);
-        display: none;
-        z-index: 5000;
-        justify-content: center;
-        align-items: center;
-    }
-
-    .cropper-box {
-        background: #111;
-        padding: 20px;
-        border-radius: 12px;
-        max-width: 95%;
-    }
-
+/* CROPPER MODAL */
+.cropper-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.9);
+    display: none;
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+}
+.cropper-box {
+    background: #111;
+    padding: 16px;
+    border-radius: 12px;
+    max-width: 95%;
+}
+.cropper-box img {
+    max-width: 100%;
+    max-height: 60vh;
+}
 </style>
 {% endblock %}
 
-
-
 {% block content %}
-
 <div class="container-box">
 
-    <!-- HEADER -->
     <div class="header-title">{{ template.name }}</div>
     <div class="subtitle">Achiever Details</div>
 
-    <!-- TOGGLE -->
-    <div class="toggle-box">
-        <div class="toggle-btn active-tab">With My Photo</div>
-        <div class="toggle-btn">With Others</div>
-    </div>
-
-    <!-- UPLINES -->
-    <div class="uplines-box">
-        <div class="uplines-list">
-            <!-- Sample demo avatars -->
-            <div class="uplines-item"><img src="/static/default_avatar1.png"></div>
-            <div class="uplines-item"><img src="/static/default_avatar2.png"></div>
-            <div class="uplines-item"><img src="/static/default_avatar3.png"></div>
-            <div class="plus-btn">+</div>
-        </div>
-    </div>
-
-    <form action="{{ url_for('fill_template', template_id=template.id) }}" method="POST">
+    <form method="POST" action="{{ url_for('fill_template', template_id=template.id) }}">
 
         {% for f in fields %}
+
         {% if f.field_type == "text" %}
             <label class="field-label">{{ f.field_name|capitalize }}</label>
-            <input type="text" name="{{ f.field_name }}" class="input-line" placeholder="Enter {{ f.field_name }}">
+            <input class="input-line" type="text" name="{{ f.field_name }}">
         {% endif %}
 
         {% if f.field_type == "image" %}
             <label class="field-label">{{ f.field_name|capitalize }}</label>
 
-            <div class="photo-upload-box" onclick="document.getElementById('file_{{ f.field_name }}').click()">
+            <div class="photo-upload-box" onclick="triggerUpload('{{ f.field_name }}')">
                 <img id="preview_{{ f.field_name }}">
                 <span class="upload-icon">📷</span>
             </div>
 
-            <input type="file" id="file_{{ f.field_name }}" accept="image/*" style="display:none"
+            <input type="file"
+                   id="file_{{ f.field_name }}"
+                   accept="image/*"
+                   hidden
                    onchange="openCropper(event, '{{ f.field_name }}', '{{ f.shape }}')">
 
-            <input type="hidden" name="{{ f.field_name }}" id="hidden_{{ f.field_name }}">
+            <input type="hidden"
+                   name="{{ f.field_name }}"
+                   id="hidden_{{ f.field_name }}">
         {% endif %}
+
         {% endfor %}
 
-        <button type="submit" class="create-btn">CREATE</button>
-
+        <button class="create-btn" type="submit">CREATE</button>
     </form>
-
 </div>
 
-
-
-<!-- CROPPER POPUP -->
+<!-- CROPPER -->
 <div id="cropperModal" class="cropper-modal">
     <div class="cropper-box">
-        <h4 style="color:white; text-align:center;">Adjust Your Photo</h4>
-
-        <img id="cropperImage" style="max-width:100%;">
-
-        <div style="text-align:center; margin-top:10px;">
-            <button onclick="cropper.zoom(0.1)" class="btn btn-light">Zoom +</button>
-            <button onclick="cropper.zoom(-0.1)" class="btn btn-light">Zoom −</button>
-            <button onclick="applyCrop()" class="btn btn-success">Apply</button>
-            <button onclick="closeCropper()" class="btn btn-danger">Cancel</button>
+        <img id="cropperImage">
+        <div style="text-align:center;margin-top:10px">
+            <button onclick="cropper.zoom(0.1)" class="btn btn-light btn-sm">+</button>
+            <button onclick="cropper.zoom(-0.1)" class="btn btn-light btn-sm">−</button>
+            <button onclick="applyCrop()" class="btn btn-success btn-sm">Apply</button>
+            <button onclick="closeCropper()" class="btn btn-danger btn-sm">Cancel</button>
         </div>
     </div>
 </div>
-
 {% endblock %}
-
 
 {% block extra_js %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
@@ -264,70 +168,67 @@ let cropper = null;
 let currentField = null;
 let currentShape = null;
 
-/*** OPEN CROPPER ***/
-function openCropper(event, fieldName, shape) {
-    currentField = fieldName;
+function triggerUpload(field) {
+    const input = document.getElementById("file_" + field);
+    input.value = ""; // 🔥 critical
+    input.click();
+}
+
+function openCropper(e, field, shape) {
+    currentField = field;
     currentShape = shape;
 
-    const file = event.target.files[0];
-    const reader = new FileReader();
+    const file = e.target.files[0];
+    if (!file) return;
 
-    reader.onload = e => {
-        document.getElementById("cropperImage").src = e.target.result;
+    const reader = new FileReader();
+    reader.onload = ev => {
+        const img = document.getElementById("cropperImage");
+        img.src = ev.target.result;
+
         document.getElementById("cropperModal").style.display = "flex";
 
         if (cropper) cropper.destroy();
-
-        cropper = new Cropper(document.getElementById("cropperImage"), {
+        cropper = new Cropper(img, {
             aspectRatio: shape === "circle" ? 1 : NaN,
             viewMode: 1,
             autoCropArea: 1,
             background: false
         });
     };
-
     reader.readAsDataURL(file);
 }
 
-/*** APPLY CROPPED IMAGE ***/
 function applyCrop() {
-    let canvas = cropper.getCroppedCanvas();
+    let canvas = cropper.getCroppedCanvas({ imageSmoothingQuality: "high" });
 
     if (currentShape === "circle") {
-        const size = Math.min(canvas.width, canvas.height);
-
-        const circleCanvas = document.createElement("canvas");
-        circleCanvas.width = size;
-        circleCanvas.height = size;
-
-        const ctx = circleCanvas.getContext("2d");
-
+        const s = Math.min(canvas.width, canvas.height);
+        const c = document.createElement("canvas");
+        c.width = s;
+        c.height = s;
+        const ctx = c.getContext("2d");
         ctx.beginPath();
-        ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
-        ctx.closePath();
+        ctx.arc(s/2,s/2,s/2,0,Math.PI*2);
         ctx.clip();
-
-        ctx.drawImage(canvas, 0, 0, size, size);
-
-        canvas = circleCanvas;
+        ctx.drawImage(canvas,0,0,s,s);
+        canvas = c;
     }
 
     const base64 = canvas.toDataURL("image/png");
 
     document.getElementById("preview_" + currentField).src = base64;
     document.getElementById("preview_" + currentField).style.display = "block";
-
     document.getElementById("hidden_" + currentField).value = base64;
 
     closeCropper();
 }
 
-/*** CLOSE MODAL ***/
 function closeCropper() {
     document.getElementById("cropperModal").style.display = "none";
     if (cropper) cropper.destroy();
     cropper = null;
 }
 </script>
-
 {% endblock %}
+

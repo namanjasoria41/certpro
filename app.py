@@ -1241,6 +1241,45 @@ def fill_template(template_id):
 
     return render_template("fill_template.html", template=template, fields=fields)
 
+import base64, uuid
+
+@app.route("/template/<int:template_id>/crop/<field>", methods=["POST"])
+@login_required
+def save_cropped_image(template_id, field):
+    try:
+        data = request.get_data(as_text=True)
+        if not data.startswith("data:image"):
+            return "Invalid image", 400
+
+        header, encoded = data.split(",", 1)
+        img_bytes = base64.b64decode(encoded)
+
+        # Save location
+        preview_folder = getattr(Config, "PREVIEW_FOLDER", "static/previews")
+        asset_dir = os.path.join(preview_folder, "assets")
+        os.makedirs(asset_dir, exist_ok=True)
+
+        filename = f"{uuid.uuid4().hex}.png"
+        filepath = os.path.join(asset_dir, filename)
+
+        with open(filepath, "wb") as f:
+            f.write(img_bytes)
+
+        # Store in session
+        preview_info = session.get("preview_info", {})
+        asset_map = preview_info.get("asset_map", {})
+        asset_map[field] = filepath
+
+        preview_info["asset_map"] = asset_map
+        preview_info["template_id"] = template_id
+        session["preview_info"] = preview_info
+
+        return {"status": "ok"}
+
+    except Exception as e:
+        app.logger.exception("Crop save failed")
+        return {"status": "error"}, 500
+
 @app.route("/template/<int:template_id>/crop/<field>")
 @login_required
 def crop_image(template_id, field):
@@ -1493,6 +1532,7 @@ def delete_template_field(template_id, field_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Crop Image{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+<style>
+.crop-wrapper {
+  max-width: 420px;
+  margin: auto;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="crop-wrapper">
+
+  <h4 class="text-center mb-3">Crop {{ field|capitalize }}</h4>
+
+  <input type="file" id="upload" accept="image/*" class="form-control mb-3">
+
+  <img id="image" style="max-width:100%; display:none;">
+
+  <button class="btn btn-success w-100 mt-3" onclick="saveCrop()">
+    Save Image
+  </button>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+<script>
+let cropper;
+
+document.getElementById("upload").onchange = e => {
+  const file = e.target.files[0];
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = document.getElementById("image");
+    img.src = ev.target.result;
+    img.style.display = "block";
+    cropper = new Cropper(img, {
+      aspectRatio: {{ 1 if shape=="circle" else "NaN" }},
+      viewMode: 1
+    });
+  };
+  reader.readAsDataURL(file);
+};
+
+function saveCrop() {
+  const canvas = cropper.getCroppedCanvas();
+  fetch("{{ url_for('save_cropped_image',
+          template_id=template.id, field=field) }}", {
+    method: "POST",
+    body: canvas.toDataURL("image/png")
+  }).then(() => window.history.back());
+}
+</script>
+{% endblock %}

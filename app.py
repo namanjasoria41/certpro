@@ -2,6 +2,7 @@ import os
 import json
 import string
 import random
+import base64, uuid
 from io import BytesIO
 from datetime import datetime, timedelta
 

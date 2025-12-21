@@ -1,31 +1,26 @@
 let canvas;
-let selectedObject = null;
+let selected = null;
 
-/* INIT */
-window.addEventListener("load", () => {
-  const bg = document.getElementById("templateBg");
+window.onload = () => {
+  canvas = new fabric.Canvas("builderCanvas", {
+    preserveObjectStacking: true
+  });
 
-  bg.onload = () => {
-    canvas = new fabric.Canvas("builderCanvas", {
-      preserveObjectStacking: true
-    });
+  fabric.Image.fromURL(TEMPLATE_IMAGE, img => {
+    canvas.setWidth(img.width);
+    canvas.setHeight(img.height);
 
-    canvas.setWidth(bg.naturalWidth);
-    canvas.setHeight(bg.naturalHeight);
+    canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
 
-    document.getElementById("builderCanvas").style.width = bg.clientWidth + "px";
-    document.getElementById("builderCanvas").style.height = bg.clientHeight + "px";
+    loadExisting();
+  });
 
-    loadExistingFields();
+  canvas.on("selection:created", e => selected = e.selected[0]);
+  canvas.on("selection:updated", e => selected = e.selected[0]);
+  canvas.on("selection:cleared", () => selected = null);
+};
 
-    canvas.on("selection:created", e => selectObject(e.selected[0]));
-    canvas.on("selection:updated", e => selectObject(e.selected[0]));
-    canvas.on("selection:cleared", () => selectObject(null));
-  };
-});
-
-/* LOAD */
-function loadExistingFields() {
+function loadExisting() {
   EXISTING_FIELDS.forEach(f => {
     let obj;
 
@@ -33,17 +28,17 @@ function loadExistingFields() {
       obj = new fabric.Textbox("Text", {
         left: f.x,
         top: f.y,
-        fontSize: f.font_size || 28,
-        fill: f.color || "#ffffff",
+        fontSize: f.font_size || 30,
+        fill: f.color || "#fff",
         name: f.field_name
       });
     } else {
       obj = new fabric.Rect({
         left: f.x,
         top: f.y,
-        width: f.width || 140,
+        width: f.width || 150,
         height: f.height || 80,
-        fill: "rgba(255,255,255,0.2)",
+        fill: "rgba(255,255,255,.2)",
         stroke: "#00ffd5",
         strokeDashArray: [6,6],
         name: f.field_name
@@ -56,25 +51,24 @@ function loadExistingFields() {
   canvas.renderAll();
 }
 
-/* ADD */
-function enableAddTextMode() {
-  const t = new fabric.Textbox("Text", {
-    left: 100,
-    top: 100,
-    fontSize: 30,
+function addText() {
+  const t = new fabric.Textbox("New Text", {
+    left: canvas.width / 2 - 50,
+    top: canvas.height / 2,
+    fontSize: 32,
     fill: "#ffffff",
     name: "text"
   });
   canvas.add(t).setActiveObject(t);
 }
 
-function enableAddImageMode() {
+function addRect() {
   const r = new fabric.Rect({
-    left: 100,
-    top: 100,
-    width: 140,
+    left: canvas.width / 2 - 75,
+    top: canvas.height / 2,
+    width: 150,
     height: 80,
-    fill: "rgba(255,255,255,0.2)",
+    fill: "rgba(255,255,255,.2)",
     stroke: "#00ffd5",
     strokeDashArray: [6,6],
     name: "image"
@@ -82,53 +76,37 @@ function enableAddImageMode() {
   canvas.add(r).setActiveObject(r);
 }
 
-/* PROPS */
-function selectObject(obj) {
-  selectedObject = obj;
-  if (!obj) return;
-
-  document.getElementById("propName").value = obj.name || "";
-  document.getElementById("propFontSize").value = obj.fontSize || "";
-  document.getElementById("propColor").value = obj.fill || "#ffffff";
-}
-
 function updateName() {
-  if (selectedObject) selectedObject.name = propName.value;
+  if (selected) selected.name = propName.value;
 }
 
 function updateFontSize() {
-  if (selectedObject?.fontSize) {
-    selectedObject.set("fontSize", parseInt(propFontSize.value));
+  if (selected?.fontSize) {
+    selected.set("fontSize", parseInt(propFontSize.value));
     canvas.renderAll();
   }
 }
 
 function updateColor() {
-  if (selectedObject) {
-    selectedObject.set("fill", propColor.value);
+  if (selected) {
+    selected.set("fill", propColor.value);
     canvas.renderAll();
   }
 }
 
-function deleteSelectedField() {
-  if (selectedObject) {
-    canvas.remove(selectedObject);
-    selectedObject = null;
+function deleteSelected() {
+  if (selected) {
+    canvas.remove(selected);
+    selected = null;
   }
 }
 
-/* PANELS */
 function toggleProperties() {
   document.getElementById("propertiesPanel").classList.toggle("open");
 }
 
-function toggleLayers() {
-  document.getElementById("layersPanel").classList.toggle("open");
-}
-
-/* SAVE */
 function saveTemplate() {
-  const payload = canvas.getObjects().map(o => ({
+  const data = canvas.getObjects().map(o => ({
     field_name: o.name,
     field_type: o.type === "textbox" ? "text" : "image",
     x: o.left,
@@ -142,8 +120,9 @@ function saveTemplate() {
   fetch(`/admin/template/${TEMPLATE_ID}/save_fields`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fields: payload })
+    body: JSON.stringify({ fields: data })
   }).then(() => alert("Saved"));
 }
+
 
 

@@ -1240,6 +1240,62 @@ def fill_template(template_id):
 
     return render_template("fill_template.html", template=template, fields=fields)
 
+@app.route("/template/<int:template_id>/crop/<field>")
+@login_required
+def crop_image(template_id, field):
+    template = Template.query.get_or_404(template_id)
+
+    # Find the field config (to know shape: circle / rect)
+    tf = TemplateField.query.filter_by(
+        template_id=template.id,
+        field_name=field
+    ).first()
+
+    shape = getattr(tf, "shape", "rect") if tf else "rect"
+
+    return render_template(
+        "crop_image.html",
+        template=template,
+        field=field,
+        shape=shape
+    )
+
+@app.route("/template/<int:template_id>/crop/<field>/save", methods=["POST"])
+@login_required
+def save_cropped_image(template_id, field):
+    import base64, uuid
+
+    data = request.get_data(as_text=True)
+    if not data.startswith("data:image"):
+        return "Invalid image", 400
+
+    header, encoded = data.split(",", 1)
+    img_bytes = base64.b64decode(encoded)
+
+    preview_assets = os.path.join(
+        getattr(Config, "PREVIEW_FOLDER", "static/previews"),
+        "assets"
+    )
+    os.makedirs(preview_assets, exist_ok=True)
+
+    filename = f"{uuid.uuid4()}.png"
+    filepath = os.path.join(preview_assets, filename)
+
+    with open(filepath, "wb") as f:
+        f.write(img_bytes)
+
+    # Store in session (important)
+    preview_info = session.get("preview_info", {})
+    asset_map = preview_info.get("asset_map", {})
+    asset_map[field] = filepath
+
+    preview_info["asset_map"] = asset_map
+    preview_info["template_id"] = template_id
+    session["preview_info"] = preview_info
+
+    return "OK"
+
+
 # ---------------------------
 # Preview + Purchase flow
 # ---------------------------
@@ -1436,6 +1492,7 @@ def delete_template_field(template_id, field_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

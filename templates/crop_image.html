@@ -1,79 +1,159 @@
-{% extends "base.html" %}
-{% block title %}Crop Image{% endblock %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Crop Image</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-{% block extra_css %}
-<link rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+
 <style>
-.crop-container {
-  max-width: 420px;
-  margin: auto;
+body {
+    background: radial-gradient(circle at top, #0b1b3a, #040b1f);
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-#cropImage {
-  max-width: 100%;
-  display: none;
+
+.crop-card {
+    width: 100%;
+    max-width: 420px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 16px;
+    padding: 16px;
+}
+
+.crop-container {
+    max-height: 360px;
+    overflow: hidden;
+    border-radius: 12px;
+    background: #000;
+}
+
+.crop-container img {
+    width: 100%;
+    display: block;
+}
+
+.preview-box {
+    width: 110px;
+    height: 110px;
+    margin: 12px auto;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid #00ffd5;
+}
+
+.preview-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.btn-main {
+    background: linear-gradient(135deg, #00ffd5, #00c9a7);
+    border: none;
+    color: #000;
+    font-weight: 700;
+    border-radius: 12px;
 }
 </style>
-{% endblock %}
+</head>
 
-{% block content %}
-<div class="crop-container">
+<body>
 
-  <h4 class="text-center mb-3">Crop {{ field|capitalize }}</h4>
+<div class="crop-card shadow-lg">
 
-  <input type="file" id="fileInput" class="form-control mb-3" accept="image/*">
+    <h5 class="text-center mb-2">Adjust Image</h5>
+    <p class="text-center text-muted small mb-3">Crop & preview before saving</p>
 
-  <img id="cropImage">
+    <div class="crop-container mb-3">
+        <img id="cropImage" src="{{ image_src }}">
+    </div>
 
-  <button id="saveBtn" class="btn btn-success w-100 mt-3" disabled>
-    Save Image
-  </button>
+    <!-- LIVE PREVIEW -->
+    <div class="preview-box">
+        <img id="livePreview">
+    </div>
+
+    <div class="d-flex gap-2 mb-3">
+        <button class="btn btn-outline-light w-100" onclick="cropper.zoom(0.1)">Zoom +</button>
+        <button class="btn btn-outline-light w-100" onclick="cropper.zoom(-0.1)">Zoom −</button>
+    </div>
+
+    <button class="btn btn-main w-100 py-2" onclick="saveCrop()">Save Image</button>
 
 </div>
-{% endblock %}
 
-{% block extra_js %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
 <script>
+const TEMPLATE_ID = {{ template_id }};
+const FIELD_NAME = "{{ field_name }}";
+const SHAPE = "{{ shape }}";
+
 let cropper;
-
-const fileInput = document.getElementById("fileInput");
 const image = document.getElementById("cropImage");
-const saveBtn = document.getElementById("saveBtn");
+const preview = document.getElementById("livePreview");
 
-fileInput.addEventListener("change", e => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = ev => {
-    image.src = ev.target.result;
-    image.style.display = "block";
-
-    if (cropper) cropper.destroy();
-
-    cropper = new Cropper(image, {
-      aspectRatio: "{{ shape }}" === "circle" ? 1 : NaN,
-      viewMode: 1,
-      autoCropArea: 1
-    });
-
-    saveBtn.disabled = false;
-  };
-  reader.readAsDataURL(file);
+cropper = new Cropper(image, {
+    viewMode: 1,
+    autoCropArea: 1,
+    background: false,
+    aspectRatio: SHAPE === "circle" ? 1 : NaN,
+    crop() {
+        const canvas = cropper.getCroppedCanvas({
+            width: 200,
+            height: 200
+        });
+        preview.src = canvas.toDataURL("image/png");
+    }
 });
 
-saveBtn.onclick = () => {
-  const canvas = cropper.getCroppedCanvas({ imageSmoothingQuality: "high" });
+/* SAVE TO BACKEND */
+function saveCrop() {
 
-  fetch("{{ url_for('save_cropped_image', template_id=template.id, field=field) }}", {
-    method: "POST",
-    headers: { "Content-Type": "text/plain" },
-    body: canvas.toDataURL("image/png")
-  })
-  .then(r => r.json())
-  .then(() => window.history.back());
-};
+    let canvas = cropper.getCroppedCanvas({
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: "high"
+    });
+
+    if (SHAPE === "circle") {
+        const size = Math.min(canvas.width, canvas.height);
+        const circleCanvas = document.createElement("canvas");
+        circleCanvas.width = size;
+        circleCanvas.height = size;
+        const ctx = circleCanvas.getContext("2d");
+
+        ctx.beginPath();
+        ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.drawImage(canvas, 0, 0, size, size);
+        canvas = circleCanvas;
+    }
+
+    const base64 = canvas.toDataURL("image/png");
+
+    fetch(`/template/${TEMPLATE_ID}/crop/${FIELD_NAME}`, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: base64
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === "ok") {
+            window.close();
+        } else {
+            alert("Failed to save image");
+        }
+    })
+    .catch(() => alert("Server error"));
+}
 </script>
-{% endblock %}
+
+</body>
+</html>

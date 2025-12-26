@@ -18,19 +18,17 @@ body {
     justify-content: center;
 }
 
-/* MAIN CARD */
 .crop-card {
     width: 100%;
     max-width: 460px;
     background: rgba(255,255,255,0.08);
     border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 16px;
+    border-radius: 18px;
     padding: 18px;
 }
 
-/* IMAGE AREA */
 .crop-container {
-    max-height: 380px;
+    max-height: 360px;
     overflow: hidden;
     border-radius: 12px;
     background: #000;
@@ -41,21 +39,13 @@ body {
     display: block;
 }
 
-/* PREVIEW */
 .preview-box {
-    width: 160px;
-    height: 100px;
-    margin: 14px auto;
-    overflow: hidden;
-    border-radius: 10px;
-    border: 2px solid #00ffd5;
-    background: #000;
-}
-
-.preview-box.circle {
     width: 120px;
     height: 120px;
-    border-radius: 50%;
+    margin: 14px auto;
+    border-radius: {{ '50%' if shape == 'circle' else '12px' }};
+    overflow: hidden;
+    border: 2px solid #00ffd5;
 }
 
 .preview-box img {
@@ -64,7 +54,6 @@ body {
     object-fit: cover;
 }
 
-/* BUTTONS */
 .btn-main {
     background: linear-gradient(135deg, #00ffd5, #00c9a7);
     border: none;
@@ -79,28 +68,25 @@ body {
 
 <div class="crop-card shadow-lg">
 
-    <h5 class="text-center mb-1">Adjust Image</h5>
+    <h5 class="text-center mb-1">Crop Image</h5>
     <p class="text-center text-muted small mb-3">
-        Crop and preview before saving
+        Adjust & preview before saving
     </p>
 
-    <!-- IMAGE -->
     <div class="crop-container mb-3">
-        <img id="cropImage" src="{{ image_src }}">
+        <img id="cropImage">
     </div>
 
     <!-- LIVE PREVIEW -->
-    <div class="preview-box" id="previewBox">
+    <div class="preview-box">
         <img id="livePreview">
     </div>
 
-    <!-- CONTROLS -->
     <div class="d-flex gap-2 mb-3">
         <button class="btn btn-outline-light w-100" onclick="cropper.zoom(0.1)">Zoom +</button>
         <button class="btn btn-outline-light w-100" onclick="cropper.zoom(-0.1)">Zoom −</button>
     </div>
 
-    <!-- SAVE -->
     <button class="btn btn-main w-100 py-2" onclick="saveCrop()">
         Save Image
     </button>
@@ -117,26 +103,32 @@ const SHAPE = "{{ shape }}";
 let cropper;
 const image = document.getElementById("cropImage");
 const preview = document.getElementById("livePreview");
-const previewBox = document.getElementById("previewBox");
 
-/* APPLY PREVIEW SHAPE */
-if (SHAPE === "circle") {
-    previewBox.classList.add("circle");
-}
-
-/* INIT CROPPER */
-cropper = new Cropper(image, {
-    viewMode: 1,
-    autoCropArea: 1,
-    background: false,
-    aspectRatio: SHAPE === "circle" ? 1 : NaN,
-    crop() {
-        const canvas = cropper.getCroppedCanvas({
-            width: SHAPE === "circle" ? 220 : 320,
-            height: SHAPE === "circle" ? 220 : 200
-        });
-        preview.src = canvas.toDataURL("image/png");
+/* LOAD IMAGE FROM FILL TEMPLATE */
+document.addEventListener("DOMContentLoaded", () => {
+    const data = sessionStorage.getItem("crop_image_data");
+    if (!data) {
+        alert("No image selected");
+        window.history.back();
+        return;
     }
+
+    image.src = data;
+    sessionStorage.removeItem("crop_image_data");
+
+    cropper = new Cropper(image, {
+        viewMode: 1,
+        autoCropArea: 1,
+        background: false,
+        aspectRatio: SHAPE === "circle" ? 1 : NaN,
+        crop() {
+            const canvas = cropper.getCroppedCanvas({
+                width: 200,
+                height: 200
+            });
+            preview.src = canvas.toDataURL("image/png");
+        }
+    });
 });
 
 /* SAVE TO BACKEND */
@@ -147,7 +139,7 @@ function saveCrop() {
         imageSmoothingQuality: "high"
     });
 
-    /* CIRCLE MASK (ONLY IF NEEDED) */
+    /* APPLY CIRCLE MASK IF REQUIRED */
     if (SHAPE === "circle") {
         const size = Math.min(canvas.width, canvas.height);
         const circleCanvas = document.createElement("canvas");
@@ -156,10 +148,11 @@ function saveCrop() {
 
         const ctx = circleCanvas.getContext("2d");
         ctx.beginPath();
-        ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+        ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
         ctx.closePath();
         ctx.clip();
         ctx.drawImage(canvas, 0, 0, size, size);
+
         canvas = circleCanvas;
     }
 
@@ -171,16 +164,19 @@ function saveCrop() {
         body: base64
     })
     .then(res => {
-        if (res.ok) {
-            window.location.href = document.referrer;
-        } else {
-            alert("Failed to save image");
-        }
+        if (!res.ok) throw new Error();
+        return res.text();
     })
-    .catch(() => alert("Server error while saving image"));
+    .then(() => {
+        window.location.href = `/template/${TEMPLATE_ID}/fill`;
+    })
+    .catch(() => {
+        alert("Failed to save image");
+    });
 }
 </script>
 
 </body>
 </html>
+
 

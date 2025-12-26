@@ -5,7 +5,7 @@
 <div class="main-container">
 
   <h3 class="text-center mb-2">{{ template.name }}</h3>
-  <p class="text-center text-muted">Fill details and upload images</p>
+  <p class="text-center text-muted">Fill details & upload images</p>
 
   <form method="POST">
 
@@ -21,33 +21,32 @@
 
         <div class="card p-3 text-center">
 
-          {% set saved_img = session.get('preview_info', {}).get('asset_map', {}).get(f.field_name) %}
+          <!-- hidden file picker -->
+          <input
+            type="file"
+            accept="image/*"
+            id="file_{{ f.field_name }}"
+            hidden
+            onchange="handleImagePick(event, '{{ f.field_name }}')"
+          >
 
-          {% if saved_img %}
-            <!-- PREVIEW -->
+          {% if session.get('preview_info', {}).get('asset_map', {}).get(f.field_name) %}
             <img
-              src="{{ url_for('view_preview', filename=saved_img.split('/')[-1]) }}"
+              src="{{ url_for('view_preview',
+                filename=session.preview_info.asset_map[f.field_name].split('/')[-1]) }}"
               class="img-fluid rounded mb-2"
-              style="max-height:180px;object-fit:contain;"
             >
-
-            <a href="{{ url_for('crop_image', template_id=template.id, field=f.field_name) }}"
-               class="btn btn-outline-secondary btn-sm">
+            <button type="button"
+              class="btn btn-outline-primary btn-sm"
+              onclick="document.getElementById('file_{{ f.field_name }}').click()">
               Re-Crop Image
-            </a>
-
+            </button>
           {% else %}
-            <!-- UPLOAD -->
-            <input
-              type="file"
-              accept="image/*"
-              class="form-control mb-2"
-              onchange="openCropper(this, '{{ f.field_name }}')"
-            >
-
-            <small class="text-muted">
-              Upload image to crop
-            </small>
+            <button type="button"
+              class="btn btn-outline-primary"
+              onclick="document.getElementById('file_{{ f.field_name }}').click()">
+              Add & Crop Image
+            </button>
           {% endif %}
 
         </div>
@@ -63,21 +62,18 @@
 </div>
 
 <script>
-function openCropper(input, fieldName) {
-    if (!input.files || !input.files[0]) return;
+function handleImagePick(event, fieldName) {
+    const file = event.target.files[0];
+    if (!file) return;
 
-    const file = input.files[0];
     const reader = new FileReader();
-
     reader.onload = function(e) {
-        // store image temporarily in sessionStorage
         sessionStorage.setItem("crop_image_data", e.target.result);
-        window.location.href = `/template/{{ template.id }}/crop/${fieldName}`;
+        window.location.href =
+          `/template/{{ template.id }}/crop/${fieldName}`;
     };
-
     reader.readAsDataURL(file);
 }
 </script>
-
 {% endblock %}
 

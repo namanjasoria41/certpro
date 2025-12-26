@@ -2,83 +2,82 @@
 {% block title %}Create {{ template.name }}{% endblock %}
 
 {% block content %}
-<div class="main-container" style="max-width:600px">
+<div class="main-container">
 
   <h3 class="text-center mb-2">{{ template.name }}</h3>
-  <p class="text-center text-muted">
-    Fill details and upload required images
-  </p>
+  <p class="text-center text-muted">Fill details and upload images</p>
 
   <form method="POST">
 
     {% for f in fields %}
 
       {% if f.field_type == "text" %}
-        <div class="mb-3">
-          <label class="form-label fw-semibold">
-            {{ f.field_name|capitalize }}
-          </label>
-          <input
-            class="form-control"
-            name="{{ f.field_name }}"
-            value="{{ request.form.get(f.field_name, '') }}"
-            required
-          >
-        </div>
+        <label class="mt-3">{{ f.field_name|capitalize }}</label>
+        <input class="form-control" name="{{ f.field_name }}" required>
       {% endif %}
 
       {% if f.field_type == "image" %}
-        <div class="mb-4">
-          <label class="form-label fw-semibold">
-            {{ f.field_name|capitalize }}
-          </label>
+        <label class="mt-4">{{ f.field_name|capitalize }}</label>
 
-          <div class="card p-3 text-center border-dashed">
+        <div class="card p-3 text-center">
 
-            {% set img_path =
-              session.get('preview_info', {})
-                     .get('asset_map', {})
-                     .get(f.field_name)
-            %}
+          {% set saved_img = session.get('preview_info', {}).get('asset_map', {}).get(f.field_name) %}
 
-            {% if img_path %}
-              <img
-                src="{{ url_for('view_preview',
-                  filename=img_path.split('/')[-1]) }}"
-                class="img-fluid rounded mb-3"
-                style="max-height:220px; object-fit:contain;"
-              >
+          {% if saved_img %}
+            <!-- PREVIEW -->
+            <img
+              src="{{ url_for('view_preview', filename=saved_img.split('/')[-1]) }}"
+              class="img-fluid rounded mb-2"
+              style="max-height:180px;object-fit:contain;"
+            >
 
-              <a
-                href="{{ url_for('crop_image',
-                  template_id=template.id,
-                  field=f.field_name) }}"
-                class="btn btn-outline-secondary btn-sm"
-              >
-                Re-Crop Image
-              </a>
-            {% else %}
-              <a
-                href="{{ url_for('crop_image',
-                  template_id=template.id,
-                  field=f.field_name) }}"
-                class="btn btn-outline-primary"
-              >
-                Add & Crop Image
-              </a>
-            {% endif %}
+            <a href="{{ url_for('crop_image', template_id=template.id, field=f.field_name) }}"
+               class="btn btn-outline-secondary btn-sm">
+              Re-Crop Image
+            </a>
 
-          </div>
+          {% else %}
+            <!-- UPLOAD -->
+            <input
+              type="file"
+              accept="image/*"
+              class="form-control mb-2"
+              onchange="openCropper(this, '{{ f.field_name }}')"
+            >
+
+            <small class="text-muted">
+              Upload image to crop
+            </small>
+          {% endif %}
+
         </div>
       {% endif %}
 
     {% endfor %}
 
-    <button type="submit" class="btn btn-primary w-100 mt-4">
-      Generate Certificate →
+    <button class="btn btn-primary w-100 mt-4">
+      Generate Preview →
     </button>
 
   </form>
 </div>
+
+<script>
+function openCropper(input, fieldName) {
+    if (!input.files || !input.files[0]) return;
+
+    const file = input.files[0];
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+        // store image temporarily in sessionStorage
+        sessionStorage.setItem("crop_image_data", e.target.result);
+        window.location.href = `/template/{{ template.id }}/crop/${fieldName}`;
+    };
+
+    reader.readAsDataURL(file);
+}
+</script>
+
 {% endblock %}
 

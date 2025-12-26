@@ -14,17 +14,16 @@ body {
     color: #fff;
     min-height: 100vh;
     display: flex;
-    align-items: center;
     justify-content: center;
+    align-items: center;
 }
 
 .crop-card {
     width: 100%;
-    max-width: 460px;
+    max-width: 420px;
     background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 18px;
-    padding: 18px;
+    border-radius: 16px;
+    padding: 16px;
 }
 
 .crop-container {
@@ -36,14 +35,13 @@ body {
 
 .crop-container img {
     width: 100%;
-    display: block;
 }
 
 .preview-box {
     width: 120px;
     height: 120px;
-    margin: 14px auto;
-    border-radius: {{ '50%' if shape == 'circle' else '12px' }};
+    margin: 12px auto;
+    border-radius: {{ "50%" if shape=="circle" else "8px" }};
     overflow: hidden;
     border: 2px solid #00ffd5;
 }
@@ -57,7 +55,6 @@ body {
 .btn-main {
     background: linear-gradient(135deg, #00ffd5, #00c9a7);
     border: none;
-    color: #000;
     font-weight: 700;
     border-radius: 12px;
 }
@@ -67,116 +64,75 @@ body {
 <body>
 
 <div class="crop-card shadow-lg">
+  <h5 class="text-center mb-2">Crop Image</h5>
 
-    <h5 class="text-center mb-1">Crop Image</h5>
-    <p class="text-center text-muted small mb-3">
-        Adjust & preview before saving
-    </p>
+  <div class="crop-container mb-3">
+    <img id="cropImage">
+  </div>
 
-    <div class="crop-container mb-3">
-        <img id="cropImage">
-    </div>
+  <div class="preview-box">
+    <img id="preview">
+  </div>
 
-    <!-- LIVE PREVIEW -->
-    <div class="preview-box">
-        <img id="livePreview">
-    </div>
+  <div class="d-flex gap-2 my-3">
+    <button class="btn btn-outline-light w-100" onclick="cropper.zoom(0.1)">Zoom +</button>
+    <button class="btn btn-outline-light w-100" onclick="cropper.zoom(-0.1)">Zoom −</button>
+  </div>
 
-    <div class="d-flex gap-2 mb-3">
-        <button class="btn btn-outline-light w-100" onclick="cropper.zoom(0.1)">Zoom +</button>
-        <button class="btn btn-outline-light w-100" onclick="cropper.zoom(-0.1)">Zoom −</button>
-    </div>
-
-    <button class="btn btn-main w-100 py-2" onclick="saveCrop()">
-        Save Image
-    </button>
-
+  <button class="btn btn-main w-100" onclick="saveCrop()">Save Image</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
 <script>
-const TEMPLATE_ID = {{ template_id }};
-const FIELD_NAME = "{{ field_name }}";
+const TEMPLATE_ID = {{ template.id }};
+const FIELD = "{{ field }}";
 const SHAPE = "{{ shape }}";
 
-let cropper;
 const image = document.getElementById("cropImage");
-const preview = document.getElementById("livePreview");
+const preview = document.getElementById("preview");
 
-/* LOAD IMAGE FROM FILL TEMPLATE */
-document.addEventListener("DOMContentLoaded", () => {
-    const data = sessionStorage.getItem("crop_image_data");
-    if (!data) {
-        alert("No image selected");
-        window.history.back();
-        return;
+image.src = sessionStorage.getItem("crop_image_data");
+
+let cropper = new Cropper(image, {
+    viewMode: 1,
+    autoCropArea: 1,
+    aspectRatio: SHAPE === "circle" ? 1 : NaN,
+    crop() {
+        const canvas = cropper.getCroppedCanvas({ width: 200, height: 200 });
+        preview.src = canvas.toDataURL();
     }
-
-    image.src = data;
-    sessionStorage.removeItem("crop_image_data");
-
-    cropper = new Cropper(image, {
-        viewMode: 1,
-        autoCropArea: 1,
-        background: false,
-        aspectRatio: SHAPE === "circle" ? 1 : NaN,
-        crop() {
-            const canvas = cropper.getCroppedCanvas({
-                width: 200,
-                height: 200
-            });
-            preview.src = canvas.toDataURL("image/png");
-        }
-    });
 });
 
-/* SAVE TO BACKEND */
 function saveCrop() {
-
     let canvas = cropper.getCroppedCanvas({
         imageSmoothingEnabled: true,
         imageSmoothingQuality: "high"
     });
 
-    /* APPLY CIRCLE MASK IF REQUIRED */
     if (SHAPE === "circle") {
         const size = Math.min(canvas.width, canvas.height);
-        const circleCanvas = document.createElement("canvas");
-        circleCanvas.width = size;
-        circleCanvas.height = size;
-
-        const ctx = circleCanvas.getContext("2d");
+        const c = document.createElement("canvas");
+        c.width = size; c.height = size;
+        const ctx = c.getContext("2d");
         ctx.beginPath();
-        ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
-        ctx.closePath();
+        ctx.arc(size/2, size/2, size/2, 0, Math.PI*2);
         ctx.clip();
         ctx.drawImage(canvas, 0, 0, size, size);
-
-        canvas = circleCanvas;
+        canvas = c;
     }
 
-    const base64 = canvas.toDataURL("image/png");
-
-    fetch(`/template/${TEMPLATE_ID}/crop/${FIELD_NAME}/save`, {
+    fetch(`/template/${TEMPLATE_ID}/crop/${FIELD}/save`, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
-        body: base64
-    })
-    .then(res => {
-        if (!res.ok) throw new Error();
-        return res.text();
+        body: canvas.toDataURL("image/png")
     })
     .then(() => {
+        sessionStorage.removeItem("crop_image_data");
         window.location.href = `/template/${TEMPLATE_ID}/fill`;
-    })
-    .catch(() => {
-        alert("Failed to save image");
     });
 }
 </script>
 
 </body>
 </html>
-
-

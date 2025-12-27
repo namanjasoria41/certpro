@@ -169,14 +169,7 @@
               <span class="badge bg-success">₹{{ "%.2f"|format(current_user.wallet_balance) }}</span>
             </a>
           </li>
-
-          {% if current_user.is_admin %}
-            <li><a class="nav-link" href="{{ url_for('admin_templates') }}">Admin</a></li>
-            <li><a class="nav-link" href="{{ url_for('admin_referrals') }}">Referrals</a></li>
-          {% endif %}
-
-          <li><a class="nav-link text-danger" href="{{ url_for('logout') }}">Logout</a></li>
-        {% endif %}
+       {% endif %}
       </ul>
     </div>
   </div>
@@ -206,4 +199,5 @@ function toggleDrawer() {
 {% block extra_js %}{% endblock %}
 </body>
 </html>
+
 

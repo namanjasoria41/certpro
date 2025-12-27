@@ -123,14 +123,7 @@
 
     <div class="category-box">
 
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h4 class="fw-bold mb-0">{{ cat }}</h4>
-        <a href="{{ url_for('category_view', category=cat) }}" class="view-all">
-          View all →
-        </a>
-      </div>
-
-      <div class="row g-3">
+     <div class="row g-3">
         {% for t in templates if t.category == cat %}
         <div class="col-6 col-md-4 col-lg-3">
           <a href="{{ url_for('fill_template', template_id=t.id) }}" class="template-card-link">
@@ -157,3 +150,4 @@
 </div>
 
 {% endblock %}
+

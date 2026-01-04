@@ -1,1 +1,0 @@
-BannerHub frontend

@@ -423,7 +423,7 @@
 <script>
   const TEMPLATE_ID = {{ template.id }};
   const TEMPLATE_IMAGE_URL = "{{ url_for('serve_template_image', template_id=template.id) }}";
-  const FIELDS = {{ fields | tojson }};
+  const FIELDS = {{ fields_data | tojson }};
 
   let canvas, ctx;
   let templateImage = new Image();

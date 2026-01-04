@@ -1,138 +1,356 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<title>Crop Image</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <title>Crop Image - {{ template.name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 
-<style>
-body {
-    background: radial-gradient(circle at top, #0b1b3a, #040b1f);
-    color: #fff;
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
+    <style>
+        * {
+            box-sizing: border-box;
+        }
 
-.crop-card {
-    width: 100%;
-    max-width: 420px;
-    background: rgba(255,255,255,0.08);
-    border-radius: 16px;
-    padding: 16px;
-}
+        body {
+            margin: 0;
+            background: linear-gradient(135deg, #0f0626, #1b0f3a, #0b1b2e);
+            color: #eaeaf0;
+            font-family: Inter, system-ui, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
 
-.crop-container {
-    max-height: 360px;
-    overflow: hidden;
-    border-radius: 12px;
-    background: #000;
-}
+        .crop-container-wrapper {
+            width: 100%;
+            max-width: 600px;
+            background: rgba(10, 5, 30, 0.85);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
 
-.crop-container img {
-    width: 100%;
-}
+        .crop-header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
 
-.preview-box {
-    width: 120px;
-    height: 120px;
-    margin: 12px auto;
-    border-radius: {{ "50%" if shape=="circle" else "8px" }};
-    overflow: hidden;
-    border: 2px solid #00ffd5;
-}
+        .crop-header h4 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #6f5cff, #00ffd5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
 
-.preview-box img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
+        .crop-header p {
+            margin: 0;
+            color: #a8a8c7;
+            font-size: 14px;
+        }
 
-.btn-main {
-    background: linear-gradient(135deg, #00ffd5, #00c9a7);
-    border: none;
-    font-weight: 700;
-    border-radius: 12px;
-}
-</style>
+        .crop-image-container {
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            max-height: 400px;
+        }
+
+        .crop-image-container img {
+            width: 100%;
+            display: block;
+        }
+
+        .preview-section {
+            margin-bottom: 25px;
+        }
+
+        .preview-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #a8a8c7;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .preview-box {
+            width: 150px;
+            height: 150px;
+            margin: 0 auto;
+
+            border-radius: {
+                    {
+                    "50%" if shape=="circle" else "12px"
+                }
+            }
+
+            ;
+            overflow: hidden;
+            border: 3px solid #00ffd5;
+            box-shadow: 0 8px 25px rgba(0, 255, 213, 0.3);
+            background: #000;
+        }
+
+        .preview-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .crop-controls {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .btn-control {
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            color: #eaeaf0;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-control:hover {
+            background: rgba(111, 92, 255, 0.2);
+            border-color: #6f5cff;
+            transform: translateY(-1px);
+        }
+
+        .btn-control i {
+            font-size: 16px;
+        }
+
+        .action-buttons {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 12px;
+        }
+
+        .btn-cancel {
+            padding: 14px;
+            background: rgba(255, 59, 59, 0.1);
+            border: 1px solid rgba(255, 59, 59, 0.3);
+            border-radius: 10px;
+            color: #ff3b3b;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-cancel:hover {
+            background: rgba(255, 59, 59, 0.2);
+            border-color: #ff3b3b;
+        }
+
+        .btn-save {
+            padding: 14px;
+            background: linear-gradient(135deg, #6f5cff, #00ffd5);
+            border: none;
+            border-radius: 10px;
+            color: #000;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 25px rgba(111, 92, 255, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(111, 92, 255, 0.6);
+        }
+
+        .btn-save:active {
+            transform: translateY(0);
+        }
+
+        @media (max-width: 576px) {
+            .crop-container-wrapper {
+                padding: 20px;
+            }
+
+            .crop-controls {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 
 <body>
 
-<div class="crop-card shadow-lg">
-  <h5 class="text-center mb-2">Crop Image</h5>
+    <div class="crop-container-wrapper">
+        <div class="crop-header">
+            <h4><i class="bi bi-scissors"></i> Crop Your Image</h4>
+            <p>Adjust the crop area to fit your image perfectly</p>
+        </div>
 
-  <div class="crop-container mb-3">
-    <img id="cropImage">
-  </div>
+        <div class="crop-image-container">
+            <img id="cropImage">
+        </div>
 
-  <div class="preview-box">
-    <img id="preview">
-  </div>
+        <div class="preview-section">
+            <div class="preview-label">Preview</div>
+            <div class="preview-box">
+                <img id="preview">
+            </div>
+        </div>
 
-  <div class="d-flex gap-2 my-3">
-    <button class="btn btn-outline-light w-100" onclick="cropper.zoom(0.1)">Zoom +</button>
-    <button class="btn btn-outline-light w-100" onclick="cropper.zoom(-0.1)">Zoom −</button>
-  </div>
+        <div class="crop-controls">
+            <button class="btn-control" onclick="cropper.zoom(0.1)">
+                <i class="bi bi-zoom-in"></i> Zoom In
+            </button>
+            <button class="btn-control" onclick="cropper.zoom(-0.1)">
+                <i class="bi bi-zoom-out"></i> Zoom Out
+            </button>
+            <button class="btn-control" onclick="cropper.rotate(90)">
+                <i class="bi bi-arrow-clockwise"></i> Rotate Right
+            </button>
+            <button class="btn-control" onclick="cropper.rotate(-90)">
+                <i class="bi bi-arrow-counterclockwise"></i> Rotate Left
+            </button>
+            <button class="btn-control" onclick="cropper.scaleX(-cropper.getData().scaleX || -1)">
+                <i class="bi bi-arrows-expand"></i> Flip H
+            </button>
+            <button class="btn-control" onclick="cropper.scaleY(-cropper.getData().scaleY || -1)">
+                <i class="bi bi-arrows-collapse"></i> Flip V
+            </button>
+        </div>
 
-  <button class="btn btn-main w-100" onclick="saveCrop()">Save Image</button>
-</div>
+        <div class="action-buttons">
+            <button class="btn-cancel" onclick="cancelCrop()">
+                <i class="bi bi-x-lg"></i> Cancel
+            </button>
+            <button class="btn-save" onclick="saveCrop()">
+                <i class="bi bi-check-lg"></i> Save & Continue
+            </button>
+        </div>
+    </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
-<script>
-const TEMPLATE_ID = {{ template.id }};
-const FIELD = "{{ field }}";
-const SHAPE = "{{ shape }}";
+    <script>
+        const TEMPLATE_ID = {{ template.id }};
+        const FIELD = "{{ field }}";
+        const SHAPE = "{{ shape }}";
 
-const image = document.getElementById("cropImage");
-const preview = document.getElementById("preview");
+        const image = document.getElementById("cropImage");
+        const preview = document.getElementById("preview");
 
-image.src = sessionStorage.getItem("crop_image_data");
+        // Load image from session storage
+        const imageData = sessionStorage.getItem("crop_image_data");
+        if (!imageData) {
+            alert("No image data found. Redirecting back...");
+            window.location.href = `/template/${TEMPLATE_ID}/fill`;
+        }
 
-let cropper = new Cropper(image, {
-    viewMode: 1,
-    autoCropArea: 1,
-    aspectRatio: SHAPE === "circle" ? 1 : NaN,
-    crop() {
-        const canvas = cropper.getCroppedCanvas({ width: 200, height: 200 });
-        preview.src = canvas.toDataURL();
-    }
-});
+        image.src = imageData;
 
-function saveCrop() {
-    let canvas = cropper.getCroppedCanvas({
-        imageSmoothingEnabled: true,
-        imageSmoothingQuality: "high"
-    });
+        // Initialize Cropper
+        let cropper = new Cropper(image, {
+            viewMode: 1,
+            dragMode: 'move',
+            autoCropArea: 1,
+            aspectRatio: SHAPE === "circle" ? 1 : NaN,
+            responsive: true,
+            restore: false,
+            guides: true,
+            center: true,
+            highlight: false,
+            cropBoxMovable: true,
+            cropBoxResizable: true,
+            toggleDragModeOnDblclick: false,
+            crop(event) {
+                const canvas = cropper.getCroppedCanvas({
+                    width: 300,
+                    height: 300,
+                    imageSmoothingEnabled: true,
+                    imageSmoothingQuality: 'high'
+                });
+                if (canvas) {
+                    preview.src = canvas.toDataURL();
+                }
+            }
+        });
 
-    if (SHAPE === "circle") {
-        const size = Math.min(canvas.width, canvas.height);
-        const c = document.createElement("canvas");
-        c.width = size; c.height = size;
-        const ctx = c.getContext("2d");
-        ctx.beginPath();
-        ctx.arc(size/2, size/2, size/2, 0, Math.PI*2);
-        ctx.clip();
-        ctx.drawImage(canvas, 0, 0, size, size);
-        canvas = c;
-    }
+        function saveCrop() {
+            let canvas = cropper.getCroppedCanvas({
+                imageSmoothingEnabled: true,
+                imageSmoothingQuality: "high",
+                fillColor: '#fff'
+            });
 
-    fetch(`/template/${TEMPLATE_ID}/crop/${FIELD}/save`, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: canvas.toDataURL("image/png")
-    })
-    .then(() => {
-        sessionStorage.removeItem("crop_image_data");
-        window.location.href = `/template/${TEMPLATE_ID}/fill`;
-    });
-}
-</script>
+            // Apply circle mask if needed
+            if (SHAPE === "circle") {
+                const size = Math.min(canvas.width, canvas.height);
+                const circleCanvas = document.createElement("canvas");
+                circleCanvas.width = size;
+                circleCanvas.height = size;
+                const ctx = circleCanvas.getContext("2d");
+
+                // Create circular clipping path
+                ctx.beginPath();
+                ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+                ctx.clip();
+
+                // Draw image
+                ctx.drawImage(canvas, 0, 0, size, size);
+                canvas = circleCanvas;
+            }
+
+            // Save to backend
+            fetch(`/template/${TEMPLATE_ID}/crop/${FIELD}/save`, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain" },
+                body: canvas.toDataURL("image/png")
+            })
+                .then(response => {
+                    if (response.ok) {
+                        sessionStorage.removeItem("crop_image_data");
+                        sessionStorage.setItem("crop_field_name", FIELD);
+                        window.location.href = `/template/${TEMPLATE_ID}/fill`;
+                    } else {
+                        alert("Failed to save image. Please try again.");
+                    }
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                    alert("Network error. Please try again.");
+                });
+        }
+
+        function cancelCrop() {
+            sessionStorage.removeItem("crop_image_data");
+            window.location.href = `/template/${TEMPLATE_ID}/fill`;
+        }
+    </script>
 
 </body>
+
 </html>

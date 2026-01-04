@@ -1239,7 +1239,21 @@ def fill_template(template_id):
         flash("Certificate generated successfully!", "success")
         return redirect(url_for("view_certificate", filename=filename))
 
-    return render_template("fill_template.html", template=template, fields=fields)
+    # Convert fields to serializable dictionaries
+    fields_data = []
+    for field in fields:
+        field_dict = {
+            "field_name": getattr(field, "field_name", None) or getattr(field, "name", None),
+            "field_type": getattr(field, "field_type", None) or getattr(field, "type", None) or "text",
+            "x": getattr(field, "x", None) or getattr(field, "x_position", 0) or 0,
+            "y": getattr(field, "y", None) or getattr(field, "y_position", 0) or 0,
+            "font_size": getattr(field, "font_size", None) or getattr(field, "size", 32) or 32,
+            "color": getattr(field, "color", None) or getattr(field, "font_color", None) or "#000000",
+            "align": getattr(field, "align", "left") or "left",
+        }
+        fields_data.append(field_dict)
+    
+    return render_template("fill_template.html", template=template, fields=fields, fields_data=fields_data)
 
 
 @app.route("/template/<int:template_id>/crop/<field>")

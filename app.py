@@ -1167,6 +1167,14 @@ def fill_template(template_id):
 
         import base64, uuid
 
+        # First, check if there are any cropped images in the session
+        preview_info = session.get("preview_info", {})
+        if preview_info.get("template_id") == template_id:
+            asset_map = preview_info.get("asset_map", {})
+            # Add cropped images to file_map
+            file_map.update(asset_map)
+            app.logger.info(f"Retrieved {len(asset_map)} cropped images from session for template {template_id}")
+
         for field in fields:
             key = getattr(field, "field_name", None) or getattr(field, "name", None)
             if not key:
@@ -1180,6 +1188,11 @@ def fill_template(template_id):
                 field_values[key] = request.form.get(key, "")
 
             elif ftype == "image":
+                # Skip if already in file_map from session (cropped image)
+                if key in file_map:
+                    app.logger.info(f"Using cropped image from session for field {key}")
+                    continue
+                    
                 base64_data = request.form.get(key, "")
 
                 if base64_data.startswith("data:image"):
@@ -1242,6 +1255,11 @@ def fill_template(template_id):
         filename = f"certificate_{current_user.id}_{template.id}_{int(datetime.utcnow().timestamp())}.png"
         output_path = os.path.join(generated_folder, filename)
         composed.save(output_path)
+
+        # Clear session data after successful generation
+        if "preview_info" in session:
+            session.pop("preview_info")
+            app.logger.info("Cleared preview_info from session after certificate generation")
 
         flash("Certificate generated successfully!", "success")
         return redirect(url_for("view_certificate", filename=filename))

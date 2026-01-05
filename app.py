@@ -61,6 +61,13 @@ app.config.from_object(Config)
 # Optional: limit upload size (e.g. 8MB)
 app.config.setdefault("MAX_CONTENT_LENGTH", 8 * 1024 * 1024)
 
+# Session configuration for production
+app.config.setdefault("SESSION_COOKIE_SAMESITE", "Lax")
+app.config.setdefault("SESSION_COOKIE_HTTPONLY", True)
+# Only set Secure in production (HTTPS)
+if not app.config.get("DEBUG", False):
+    app.config.setdefault("SESSION_COOKIE_SECURE", True)
+
 # Make DB connections robust
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
@@ -1281,35 +1288,50 @@ def crop_image(template_id, field):
 def save_cropped_image(template_id, field):
     import base64, uuid
 
-    data = request.get_data(as_text=True)
-    if not data.startswith("data:image"):
-        return "Invalid image", 400
+    try:
+        data = request.get_data(as_text=True)
+        
+        if not data or not data.startswith("data:image"):
+            app.logger.warning(f"Invalid image data received for field {field}")
+            return jsonify({"status": "error", "message": "Invalid image data"}), 400
 
-    header, encoded = data.split(",", 1)
-    img_bytes = base64.b64decode(encoded)
+        # Split header and encoded data
+        if "," not in data:
+            app.logger.warning(f"Malformed image data for field {field}")
+            return jsonify({"status": "error", "message": "Malformed image data"}), 400
+            
+        header, encoded = data.split(",", 1)
+        img_bytes = base64.b64decode(encoded)
 
-    preview_assets = os.path.join(
-        getattr(Config, "PREVIEW_FOLDER", "static/previews"),
-        "assets"
-    )
-    os.makedirs(preview_assets, exist_ok=True)
+        preview_assets = os.path.join(
+            getattr(Config, "PREVIEW_FOLDER", "static/previews"),
+            "assets"
+        )
+        os.makedirs(preview_assets, exist_ok=True)
 
-    filename = f"{uuid.uuid4()}.png"
-    filepath = os.path.join(preview_assets, filename)
+        filename = f"{uuid.uuid4()}.png"
+        filepath = os.path.join(preview_assets, filename)
 
-    with open(filepath, "wb") as f:
-        f.write(img_bytes)
+        with open(filepath, "wb") as f:
+            f.write(img_bytes)
 
-    # Store in session (important)
-    preview_info = session.get("preview_info", {})
-    asset_map = preview_info.get("asset_map", {})
-    asset_map[field] = filepath
+        # Store in session (important)
+        preview_info = session.get("preview_info", {})
+        asset_map = preview_info.get("asset_map", {})
+        asset_map[field] = filepath
 
-    preview_info["asset_map"] = asset_map
-    preview_info["template_id"] = template_id
-    session["preview_info"] = preview_info
+        preview_info["asset_map"] = asset_map
+        preview_info["template_id"] = template_id
+        session["preview_info"] = preview_info
+        session.modified = True  # Ensure session is saved
 
-    return "OK"
+        app.logger.info(f"Successfully saved cropped image for field {field}, template {template_id}")
+        
+        return jsonify({"status": "success", "message": "Image saved successfully"}), 200
+        
+    except Exception as e:
+        app.logger.exception(f"Error saving cropped image for field {field}: {e}")
+        return jsonify({"status": "error", "message": "Failed to save image"}), 500
 
 
 # ---------------------------
@@ -1508,6 +1530,7 @@ def delete_template_field(template_id, field_id):
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
 
 

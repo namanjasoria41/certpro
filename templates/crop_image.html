@@ -331,17 +331,24 @@
                 body: canvas.toDataURL("image/png")
             })
                 .then(response => {
-                    if (response.ok) {
-                        sessionStorage.removeItem("crop_image_data");
-                        sessionStorage.setItem("crop_field_name", FIELD);
-                        window.location.href = `/template/${TEMPLATE_ID}/fill`;
-                    } else {
-                        alert("Failed to save image. Please try again.");
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.message || "Failed to save image");
+                        }).catch(() => {
+                            throw new Error("Failed to save image. Server returned: " + response.status);
+                        });
                     }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("Image saved successfully:", data);
+                    sessionStorage.removeItem("crop_image_data");
+                    sessionStorage.setItem("crop_field_name", FIELD);
+                    window.location.href = `/template/${TEMPLATE_ID}/fill`;
                 })
                 .catch(error => {
-                    console.error("Error:", error);
-                    alert("Network error. Please try again.");
+                    console.error("Error saving cropped image:", error);
+                    alert("Error: " + error.message + "\n\nPlease try again or contact support if the issue persists.");
                 });
         }
 

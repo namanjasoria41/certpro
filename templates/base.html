@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Banner Hub{% endblock %}</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+
+  {% block extra_css %}{% endblock %}
+
+  <style>
+  :root {
+    --bg-main: linear-gradient(135deg,#0f0626,#1b0f3a,#0b1b2e);
+    --glass-bg: rgba(255,255,255,.06);
+    --glass-border: rgba(255,255,255,.12);
+    --primary: #6f5cff;
+    --accent: #00ffd5;
+    --text-main: #eaeaf0;
+    --text-muted: #a8a8c7;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg-main);
+    color: var(--text-main);
+    font-family: Inter, system-ui, sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* NAVBAR */
+  .navbar {
+    background: rgba(10,5,30,.85);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--glass-border);
+  }
+
+  /* MAIN WRAPPER */
+  .main-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 16px;
+  }
+
+  /* FLASH */
+  .alert {
+    border-radius: 14px;
+    background: rgba(255,255,255,.08);
+    border: 1px solid var(--glass-border);
+    color: white;
+  }
+
+  /* SIDEBAR */
+  .side-drawer {
+    position: fixed;
+    top: 0;
+    left: -260px;
+    width: 260px;
+    height: 100vh;
+    background: rgba(10,5,30,.95);
+    backdrop-filter: blur(18px);
+    border-right: 1px solid rgba(255,255,255,.15);
+    padding: 20px;
+    transition: .3s ease;
+    z-index: 3000;
+  }
+
+  .side-drawer.active {
+    left: 0;
+  }
+
+  .side-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: Montserrat;
+    font-weight: 800;
+    margin-bottom: 20px;
+  }
+
+  .side-wallet {
+    background: linear-gradient(135deg,#00ffd5,#00c9a7);
+    color: #000;
+    font-weight: 700;
+    padding: 10px;
+    border-radius: 12px;
+    text-align: center;
+    margin-bottom: 18px;
+  }
+
+  .side-drawer a {
+    display: block;
+    padding: 10px 14px;
+    border-radius: 10px;
+    color: #eaeaf0;
+    text-decoration: none;
+    margin-bottom: 8px;
+    background: rgba(255,255,255,.06);
+  }
+
+  .side-drawer a:hover {
+    background: var(--primary);
+    color: #fff;
+  }
+
+  .side-drawer .danger {
+    color: #ff6b6b;
+  }
+
+  .drawer-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.6);
+    display: none;
+    z-index: 2500;
+  }
+
+  .drawer-overlay.active {
+    display: block;
+  }
+  </style>
+</head>
+
+<body>
+
+<!-- SIDEBAR -->
+<div id="sideDrawer" class="side-drawer">
+  <div class="side-header">
+    <img src="{{ url_for('static', filename='logo.png') }}" height="36">
+    BANNER HUB
+  </div>
+
+  {% if current_user.is_authenticated %}
+    <div class="side-wallet">
+      ₹{{ "%.2f"|format(current_user.wallet_balance) }}
+    </div>
+
+    {% if current_user.is_admin %}
+      <a href="{{ url_for('admin_templates') }}">Admin</a>
+      <a href="{{ url_for('admin_referrals') }}">Referrals</a>
+    {% endif %}
+
+    <a href="{{ url_for('wallet') }}">Wallet</a>
+    <a href="{{ url_for('logout') }}" class="danger">Logout</a>
+  {% endif %}
+</div>
+
+<div id="drawerOverlay" class="drawer-overlay" onclick="toggleDrawer()"></div>
+
+<!-- NAVBAR -->
+<nav class="navbar navbar-expand-lg navbar-dark sticky-top">
+  <div class="container-fluid px-4">
+
+    <button class="btn btn-outline-light me-2" onclick="toggleDrawer()">☰</button>
+
+    <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
+      <img src="{{ url_for('static', filename='logo.png') }}" style="height:36px" class="me-2">
+      <span style="font-family:Montserrat;font-weight:800">BANNER HUB</span>
+    </a>
+
+    <div class="collapse navbar-collapse show">
+      <ul class="navbar-nav ms-auto align-items-center gap-3">
+        {% if current_user.is_authenticated %}
+          <li>
+            <a href="{{ url_for('wallet') }}" class="nav-link">
+              <span class="badge bg-success">₹{{ "%.2f"|format(current_user.wallet_balance) }}</span>
+            </a>
+          </li>
+       {% endif %}
+      </ul>
+    </div>
+  </div>
+</nav>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="main-container">
+      {% for cat,msg in messages %}
+        <div class="alert alert-{{cat}}">{{ msg }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+{% block content %}{% endblock %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+function toggleDrawer() {
+  document.getElementById("sideDrawer").classList.toggle("active");
+  document.getElementById("drawerOverlay").classList.toggle("active");
+}
+</script>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>
+
+

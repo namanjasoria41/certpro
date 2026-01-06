@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Preview{% endblock %}
+
+{% block content %}
+<div class="main-container text-center">
+
+  <h3>Preview</h3>
+
+  <img src="{{ preview_url }}"
+       class="img-fluid rounded shadow-lg my-3">
+
+  <h4 class="mt-2">₹{{ template.price }}</h4>
+
+  <a href="{{ url_for('fill_template', template_id=template.id) }}"
+     class="btn btn-outline-secondary w-100 mt-2">
+    Edit
+  </a>
+
+  <form method="POST" action="{{ url_for('start_payment', template_id=template.id) }}">
+    <button class="btn btn-primary w-100 mt-3">
+      Pay & Download
+    </button>
+  </form>
+
+</div>
+{% endblock %}
+
+
+

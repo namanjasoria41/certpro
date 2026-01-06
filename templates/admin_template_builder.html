@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+
+{% block title %}Builder — {{ template.name }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/builder.css') }}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+{% endblock %}
+
+{% block content %}
+
+<div class="builder-container">
+
+  <!-- TOP TOOLBAR -->
+  <div class="builder-topbar">
+    <div class="topbar-left">
+      <a href="{{ url_for('admin_templates') }}" class="btn-back">
+        <i class="bi bi-arrow-left"></i> Back
+      </a>
+      <span class="template-name">{{ template.name }}</span>
+    </div>
+
+    <div class="topbar-center">
+      <button class="btn-icon" onclick="undo()" title="Undo (Ctrl+Z)">
+        <i class="bi bi-arrow-counterclockwise"></i>
+      </button>
+      <button class="btn-icon" onclick="redo()" title="Redo (Ctrl+Y)">
+        <i class="bi bi-arrow-clockwise"></i>
+      </button>
+      <div class="divider"></div>
+      <button class="btn-icon" onclick="zoomOut()" title="Zoom Out">
+        <i class="bi bi-zoom-out"></i>
+      </button>
+      <span class="zoom-level" id="zoomLevel">100%</span>
+      <button class="btn-icon" onclick="zoomIn()" title="Zoom In">
+        <i class="bi bi-zoom-in"></i>
+      </button>
+      <button class="btn-icon" onclick="resetZoom()" title="Reset Zoom">
+        <i class="bi bi-aspect-ratio"></i>
+      </button>
+    </div>
+
+    <div class="topbar-right">
+      <button class="btn-save" onclick="saveTemplate()">
+        <i class="bi bi-save"></i> Save Template
+      </button>
+    </div>
+  </div>
+
+  <div class="builder-main">
+
+    <!-- LEFT SIDEBAR - Field List -->
+    <div class="builder-sidebar">
+      <div class="sidebar-header">
+        <h6><i class="bi bi-layers"></i> Fields</h6>
+        <span class="field-count" id="fieldCount">0</span>
+      </div>
+
+      <div class="sidebar-actions">
+        <button class="btn-add" onclick="addText()">
+          <i class="bi bi-fonts"></i> Add Text
+        </button>
+        <button class="btn-add" onclick="addImagePlaceholder()">
+          <i class="bi bi-image"></i> Add Image
+        </button>
+      </div>
+
+      <div class="field-list" id="fieldList">
+        <!-- Fields will be populated here -->
+      </div>
+    </div>
+
+    <!-- CANVAS AREA -->
+    <div class="builder-canvas-wrapper">
+      <div class="canvas-container" id="canvasContainer">
+        <canvas id="builderCanvas"></canvas>
+      </div>
+    </div>
+
+    <!-- RIGHT PROPERTIES PANEL -->
+    <div class="builder-properties">
+      <div class="properties-header">
+        <h6><i class="bi bi-sliders"></i> Properties</h6>
+      </div>
+
+      <div class="properties-content" id="propertiesContent">
+        <div class="no-selection">
+          <i class="bi bi-cursor"></i>
+          <p>Select a field to edit properties</p>
+        </div>
+      </div>
+
+      <!-- Text Field Properties Template -->
+      <div id="textPropertiesTemplate" style="display: none;">
+        <div class="prop-group">
+          <label>Field Name</label>
+          <input type="text" class="prop-input" id="propFieldName" placeholder="e.g., name, title">
+        </div>
+
+        <div class="prop-group">
+          <label>Text Content (Preview)</label>
+          <input type="text" class="prop-input" id="propTextContent" placeholder="Sample text">
+        </div>
+
+        <div class="prop-row">
+          <div class="prop-group">
+            <label>Font Size</label>
+            <input type="number" class="prop-input" id="propFontSize" min="8" max="200" value="32">
+          </div>
+          <div class="prop-group">
+            <label>Color</label>
+            <input type="color" class="prop-input" id="propColor" value="#ffffff">
+          </div>
+        </div>
+
+        <div class="prop-group">
+          <label>Font Family</label>
+          <select class="prop-input" id="propFontFamily">
+            <option value="default">Default</option>
+            <option value="roboto">Roboto</option>
+            <option value="inter">Inter</option>
+            <option value="open_sans">Open Sans</option>
+            <option value="noto_sans">Noto Sans</option>
+            <option value="times">Times</option>
+          </select>
+        </div>
+
+        <div class="prop-group">
+          <label>Text Alignment</label>
+          <div class="btn-group-toggle">
+            <button class="btn-toggle" data-align="left" onclick="setAlignment('left')">
+              <i class="bi bi-text-left"></i>
+            </button>
+            <button class="btn-toggle" data-align="center" onclick="setAlignment('center')">
+              <i class="bi bi-text-center"></i>
+            </button>
+            <button class="btn-toggle" data-align="right" onclick="setAlignment('right')">
+              <i class="bi bi-text-right"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="prop-row">
+          <div class="prop-group">
+            <label>X Position</label>
+            <input type="number" class="prop-input" id="propX" min="0">
+          </div>
+          <div class="prop-group">
+            <label>Y Position</label>
+            <input type="number" class="prop-input" id="propY" min="0">
+          </div>
+        </div>
+
+        <div class="prop-actions">
+          <button class="btn-action btn-duplicate" onclick="duplicateField()">
+            <i class="bi bi-files"></i> Duplicate
+          </button>
+          <button class="btn-action btn-delete" onclick="deleteField()">
+            <i class="bi bi-trash"></i> Delete
+          </button>
+        </div>
+      </div>
+
+      <!-- Image Field Properties Template -->
+      <div id="imagePropertiesTemplate" style="display: none;">
+        <div class="prop-group">
+          <label>Field Name</label>
+          <input type="text" class="prop-input" id="propFieldNameImg" placeholder="e.g., photo, logo">
+        </div>
+
+        <div class="prop-row">
+          <div class="prop-group">
+            <label>Width</label>
+            <input type="number" class="prop-input" id="propWidth" min="10" value="150">
+          </div>
+          <div class="prop-group">
+            <label>Height</label>
+            <input type="number" class="prop-input" id="propHeight" min="10" value="150">
+          </div>
+        </div>
+
+        <div class="prop-group">
+          <label>Shape</label>
+          <div class="btn-group-toggle">
+            <button class="btn-toggle active" data-shape="rect" onclick="setShape('rect')">
+              <i class="bi bi-square"></i> Rectangle
+            </button>
+            <button class="btn-toggle" data-shape="circle" onclick="setShape('circle')">
+              <i class="bi bi-circle"></i> Circle
+            </button>
+          </div>
+        </div>
+
+        <div class="prop-row">
+          <div class="prop-group">
+            <label>X Position</label>
+            <input type="number" class="prop-input" id="propXImg" min="0">
+          </div>
+          <div class="prop-group">
+            <label>Y Position</label>
+            <input type="number" class="prop-input" id="propYImg" min="0">
+          </div>
+        </div>
+
+        <div class="prop-actions">
+          <button class="btn-action btn-duplicate" onclick="duplicateField()">
+            <i class="bi bi-files"></i> Duplicate
+          </button>
+          <button class="btn-action btn-delete" onclick="deleteField()">
+            <i class="bi bi-trash"></i> Delete
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js"></script>
+<script>
+  const TEMPLATE_ID = {{ template.id }};
+  const TEMPLATE_IMAGE = "{{ template_image_url }}";
+  const EXISTING_FIELDS = {{ fields | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/builder.js') }}"></script>
+{% endblock %}

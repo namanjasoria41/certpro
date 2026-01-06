@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Pay - {{ template.name }}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <h3>Pay ₹{{ '%.2f'|format(amount) }}</h3>
+  <p>Proceed with Razorpay payment for the template: <strong>{{ template.name }}</strong></p>
+
+  <form id="razorpay-form" method="POST" action="{{ url_for('payment_verify') }}">
+    <input type="hidden" name="razorpay_order_id" value="{{ razorpay_order_id }}">
+    <input type="hidden" name="razorpay_payment_id" id="razorpay_payment_id">
+    <input type="hidden" name="razorpay_signature" id="razorpay_signature">
+  </form>
+
+  <button id="pay-btn" class="btn btn-primary">Open Razorpay Checkout</button>
+</div>
+
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+document.getElementById('pay-btn').addEventListener('click', function (e) {
+  const options = {
+    "key": "{{ razorpay_key_id }}",
+    "amount": "{{ amount_paise }}",
+    "currency": "INR",
+    "order_id": "{{ razorpay_order_id }}",
+    "handler": function (response) {
+      document.getElementById('razorpay_payment_id').value = response.razorpay_payment_id;
+      document.getElementById('razorpay_signature').value = response.razorpay_signature;
+      document.getElementById('razorpay-form').submit();
+    },
+    "prefill": {
+      "name": "{{ current_user.email or '' }}",
+      "email": "{{ current_user.email or '' }}"
+    }
+  };
+  const rzp = new Razorpay(options);
+  rzp.open();
+});
+</script>
+{% endblock %}

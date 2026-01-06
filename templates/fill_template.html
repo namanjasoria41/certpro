@@ -1,0 +1,564 @@
+{% extends "base.html" %}
+{% block title %}Create {{ template.name }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+  .fill-container {
+    min-height: calc(100vh - 120px);
+    background: linear-gradient(135deg, #0f0626, #1b0f3a, #0b1b2e);
+    padding: 30px 0;
+  }
+
+  .fill-wrapper {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 20px;
+  }
+
+  .fill-header {
+    text-align: center;
+    margin-bottom: 30px;
+  }
+
+  .fill-header h2 {
+    font-size: 32px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #6f5cff, #00ffd5);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 8px;
+  }
+
+  .fill-header p {
+    color: #a8a8c7;
+    font-size: 15px;
+  }
+
+  .fill-main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    align-items: start;
+  }
+
+  /* LEFT SIDE - FORM */
+  .form-section {
+    background: rgba(10, 5, 30, 0.6);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    padding: 30px;
+  }
+
+  .progress-bar-container {
+    margin-bottom: 25px;
+  }
+
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #a8a8c7;
+  }
+
+  .progress-bar-custom {
+    height: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #6f5cff, #00ffd5);
+    border-radius: 10px;
+    transition: width 0.3s ease;
+    width: 0%;
+  }
+
+  .field-card {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 20px;
+    transition: all 0.2s ease;
+  }
+
+  .field-card:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .field-card.completed {
+    border-color: rgba(0, 255, 213, 0.3);
+    background: rgba(0, 255, 213, 0.05);
+  }
+
+  .field-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    font-weight: 600;
+    color: #eaeaf0;
+    font-size: 14px;
+    text-transform: capitalize;
+  }
+
+  .field-label i {
+    color: #00ffd5;
+    font-size: 18px;
+  }
+
+  .field-input {
+    width: 100%;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    color: #eaeaf0;
+    font-size: 15px;
+    transition: all 0.2s ease;
+  }
+
+  .field-input:focus {
+    outline: none;
+    background: rgba(255, 255, 255, 0.08);
+    border-color: #6f5cff;
+    box-shadow: 0 0 0 3px rgba(111, 92, 255, 0.1);
+  }
+
+  .field-input::placeholder {
+    color: #6b6b8a;
+  }
+
+  /* IMAGE UPLOAD */
+  .image-upload-area {
+    border: 2px dashed rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    padding: 30px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .image-upload-area:hover {
+    border-color: #6f5cff;
+    background: rgba(111, 92, 255, 0.05);
+  }
+
+  .image-upload-area i {
+    font-size: 40px;
+    color: #6f5cff;
+    margin-bottom: 12px;
+  }
+
+  .image-upload-area p {
+    margin: 0;
+    color: #a8a8c7;
+    font-size: 14px;
+  }
+
+  .image-preview-container {
+    position: relative;
+    text-align: center;
+  }
+
+  .image-preview {
+    max-width: 100%;
+    max-height: 200px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  }
+
+  .image-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  .btn-image-action {
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: #eaeaf0;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .btn-image-action:hover {
+    background: rgba(111, 92, 255, 0.2);
+    border-color: #6f5cff;
+  }
+
+  /* SUBMIT BUTTON */
+  .btn-generate {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, #6f5cff, #00ffd5);
+    border: none;
+    border-radius: 12px;
+    color: #000;
+    font-weight: 700;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 8px 25px rgba(111, 92, 255, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .btn-generate:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 35px rgba(111, 92, 255, 0.6);
+  }
+
+  .btn-generate:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* RIGHT SIDE - PREVIEW */
+  .preview-section {
+    position: sticky;
+    top: 80px;
+    background: rgba(10, 5, 30, 0.6);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    padding: 30px;
+  }
+
+  .preview-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .preview-header i {
+    color: #00ffd5;
+    font-size: 20px;
+  }
+
+  .preview-header h5 {
+    margin: 0;
+    font-weight: 700;
+    color: #eaeaf0;
+    font-size: 16px;
+  }
+
+  .preview-canvas-wrapper {
+    background: #0b1020;
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 400px;
+  }
+
+  .preview-placeholder {
+    text-align: center;
+    color: #6b6b8a;
+  }
+
+  .preview-placeholder i {
+    font-size: 60px;
+    margin-bottom: 15px;
+    opacity: 0.3;
+  }
+
+  .preview-placeholder p {
+    margin: 0;
+    font-size: 14px;
+  }
+
+  #previewCanvas {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 992px) {
+    .fill-main {
+      grid-template-columns: 1fr;
+    }
+
+    .preview-section {
+      position: relative;
+      top: 0;
+    }
+  }
+
+  @media (max-width: 576px) {
+    .fill-wrapper {
+      padding: 0 15px;
+    }
+
+    .form-section,
+    .preview-section {
+      padding: 20px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fill-container">
+  <div class="fill-wrapper">
+
+    <div class="fill-header">
+      <h2>{{ template.name }}</h2>
+      <p>Fill in the details below to create your certificate</p>
+    </div>
+
+    <div class="fill-main">
+
+      <!-- LEFT: FORM -->
+      <div class="form-section">
+
+        <!-- Progress Bar -->
+        <div class="progress-bar-container">
+          <div class="progress-label">
+            <span>Progress</span>
+            <span id="progressText">0%</span>
+          </div>
+          <div class="progress-bar-custom">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+        </div>
+
+        <form method="POST" id="fillForm" enctype="multipart/form-data">
+
+          {% for f in fields %}
+
+          {% if f.field_type == "text" %}
+          <div class="field-card" data-field-type="text">
+            <label class="field-label">
+              <i class="bi bi-fonts"></i>
+              {{ f.field_name|replace('_', ' ')|title }}
+            </label>
+            <input type="text" class="field-input" name="{{ f.field_name }}"
+              placeholder="Enter {{ f.field_name|replace('_', ' ') }}" data-field="{{ f.field_name }}" required>
+          </div>
+          {% endif %}
+
+          {% if f.field_type == "image" %}
+          <div class="field-card" data-field-type="image">
+            <label class="field-label">
+              <i class="bi bi-image"></i>
+              {{ f.field_name|replace('_', ' ')|title }}
+            </label>
+
+            <input type="file" accept="image/*" id="file_{{ f.field_name }}" name="{{ f.field_name }}"
+              style="display: none;" onchange="handleImagePick(event, '{{ f.field_name }}')">
+
+            <div id="upload_{{ f.field_name }}" class="image-upload-area"
+              onclick="document.getElementById('file_{{ f.field_name }}').click()">
+              <i class="bi bi-cloud-upload"></i>
+              <p>Click to upload image</p>
+            </div>
+
+            <div id="preview_{{ f.field_name }}" class="image-preview-container" style="display: none;">
+              <img class="image-preview" id="img_{{ f.field_name }}">
+              <div class="image-actions">
+                <button type="button" class="btn-image-action"
+                  onclick="document.getElementById('file_{{ f.field_name }}').click()">
+                  <i class="bi bi-pencil"></i> Change
+                </button>
+                <button type="button" class="btn-image-action" onclick="removeImage('{{ f.field_name }}')">
+                  <i class="bi bi-trash"></i> Remove
+                </button>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+
+          {% endfor %}
+
+          <button type="submit" class="btn-generate" id="submitBtn">
+            <i class="bi bi-stars"></i>
+            Generate Certificate
+          </button>
+
+        </form>
+      </div>
+
+      <!-- RIGHT: PREVIEW -->
+      <div class="preview-section">
+        <div class="preview-header">
+          <i class="bi bi-eye"></i>
+          <h5>Live Preview</h5>
+        </div>
+
+        <div class="preview-canvas-wrapper">
+          <div class="preview-placeholder" id="previewPlaceholder">
+            <i class="bi bi-file-earmark-text"></i>
+            <p>Start filling the form to see preview</p>
+          </div>
+          <canvas id="previewCanvas" style="display: none;"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  const TEMPLATE_ID = {{ template.id }};
+  const TEMPLATE_IMAGE_URL = "{{ url_for('serve_template_image', template_id=template.id) }}";
+  const FIELDS = {{ fields_data | tojson }};
+
+  let canvas, ctx;
+  let templateImage = new Image();
+  let uploadedImages = {};
+
+  // Initialize
+  window.addEventListener('DOMContentLoaded', () => {
+    canvas = document.getElementById('previewCanvas');
+    ctx = canvas.getContext('2d');
+
+    // Load template image
+    templateImage.crossOrigin = "anonymous";
+    templateImage.onload = () => {
+      canvas.width = templateImage.width;
+      canvas.height = templateImage.height;
+      updatePreview();
+    };
+    templateImage.src = TEMPLATE_IMAGE_URL;
+
+    // Add input listeners
+    document.querySelectorAll('.field-input').forEach(input => {
+      input.addEventListener('input', () => {
+        updateProgress();
+        updatePreview();
+      });
+    });
+
+    updateProgress();
+  });
+
+  function updateProgress() {
+    const totalFields = FIELDS.length;
+    let completedFields = 0;
+
+    // Check text fields
+    document.querySelectorAll('.field-input').forEach(input => {
+      if (input.value.trim()) {
+        completedFields++;
+        input.closest('.field-card').classList.add('completed');
+      } else {
+        input.closest('.field-card').classList.remove('completed');
+      }
+    });
+
+    // Check image fields
+    Object.keys(uploadedImages).forEach(() => {
+      completedFields++;
+    });
+
+    const percentage = totalFields > 0 ? Math.round((completedFields / totalFields) * 100) : 0;
+    document.getElementById('progressFill').style.width = percentage + '%';
+    document.getElementById('progressText').textContent = percentage + '%';
+  }
+
+  function updatePreview() {
+    if (!templateImage.complete) return;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw template background
+    ctx.drawImage(templateImage, 0, 0);
+
+    // Draw text fields
+    FIELDS.forEach(field => {
+      if (field.field_type === 'text') {
+        const input = document.querySelector(`input[data-field="${field.field_name}"]`);
+        if (input && input.value) {
+          const text = input.value;
+          const x = field.x || 0;
+          const y = field.y || 0;
+          const fontSize = field.font_size || 32;
+          const color = field.color || '#000000';
+          const align = field.align || 'left';
+
+          ctx.font = `${fontSize}px Arial`;
+          ctx.fillStyle = color;
+          ctx.textAlign = align;
+          ctx.fillText(text, x, y + fontSize);
+        }
+      }
+    });
+
+    // Show canvas, hide placeholder
+    document.getElementById('previewPlaceholder').style.display = 'none';
+    canvas.style.display = 'block';
+  }
+
+  function handleImagePick(event, fieldName) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      sessionStorage.setItem("crop_image_data", e.target.result);
+      sessionStorage.setItem("crop_field_name", fieldName);
+      window.location.href = `/template/${TEMPLATE_ID}/crop/${fieldName}`;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function removeImage(fieldName) {
+    delete uploadedImages[fieldName];
+    document.getElementById(`upload_${fieldName}`).style.display = 'block';
+    document.getElementById(`preview_${fieldName}`).style.display = 'none';
+    document.getElementById(`file_${fieldName}`).value = '';
+
+    const card = document.querySelector(`#preview_${fieldName}`).closest('.field-card');
+    card.classList.remove('completed');
+
+    updateProgress();
+    updatePreview();
+  }
+
+  // Check for returned from crop
+  window.addEventListener('DOMContentLoaded', () => {
+    const fieldName = sessionStorage.getItem('crop_field_name');
+    if (fieldName) {
+      // Mark as uploaded
+      uploadedImages[fieldName] = true;
+
+      const uploadArea = document.getElementById(`upload_${fieldName}`);
+      const previewArea = document.getElementById(`preview_${fieldName}`);
+
+      if (uploadArea && previewArea) {
+        uploadArea.style.display = 'none';
+        previewArea.style.display = 'block';
+
+        const card = previewArea.closest('.field-card');
+        card.classList.add('completed');
+      }
+
+      sessionStorage.removeItem('crop_field_name');
+      updateProgress();
+    }
+  });
+</script>
+{% endblock %}

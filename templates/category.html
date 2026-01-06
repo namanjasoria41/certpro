@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}{{ category }} – CertPro{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="fw-bold">{{ category }}</h3>
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">
+      ← Back
+    </a>
+  </div>
+
+  {% if templates %}
+  <div class="row g-3">
+    {% for template in templates %}
+    <div class="col-6 col-md-4 col-lg-3">
+      <a href="{{ url_for('fill_template', template_id=template.id) }}"
+         class="template-card-link">
+
+        <div class="template-card">
+          <img src="{{ url_for('serve_template_image', template_id=t.id) }}" 
+     alt="{{ t.name }}"
+     loading="lazy">
+
+
+          <div class="template-overlay">
+            <div class="template-info">
+              <h6>{{ template.name }}</h6>
+              <span>₹{{ '%.0f'|format(template.price or 0) }}</span>
+            </div>
+          </div>
+        </div>
+
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+    <div class="alert alert-info">No templates found in this category.</div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+

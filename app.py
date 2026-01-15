@@ -364,9 +364,21 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
 
             print(f"Processing text field '{key}' = '{text}' at ({x}, {y})")
 
+            # Auto-scale font size for large images
+            img_width, img_height = base_image.size
+            scale_factor = 1.0
+            
+            # If image is large (>1500px), scale up font sizes
+            if max(img_width, img_height) > 1500:
+                scale_factor = 3.0  # 3x larger fonts for 2000px images
+                print(f"Large image detected ({img_width}x{img_height}), scaling font by {scale_factor}x")
+            
+            scaled_font_size = int(font_size * scale_factor)
+            print(f"Original font size: {font_size}, Scaled font size: {scaled_font_size}")
+
             font_path = get_font_path_for_token(font_family)
             try:
-                font = ImageFont.truetype(font_path, int(font_size)) if font_path else ImageFont.load_default()
+                font = ImageFont.truetype(font_path, scaled_font_size) if font_path else ImageFont.load_default()
             except Exception as e:
                 print(f"WARNING: Failed to load font for field '{key}': {e}, using default")
                 font = ImageFont.load_default()
@@ -380,12 +392,11 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
                 tx -= text_width
 
             # Check if text is within image bounds
-            img_width, img_height = base_image.size
             if tx < 0 or tx > img_width or int(y) < 0 or int(y) > img_height:
                 print(f"WARNING: Text at ({tx}, {y}) is outside image bounds ({img_width}x{img_height})")
 
             draw.text((tx, int(y)), text, fill=color, font=font)
-            print(f"Successfully drew text for field '{key}' at final position ({tx}, {y})")
+            print(f"Successfully drew text for field '{key}' at final position ({tx}, {y}) with font size {scaled_font_size}")
 
     print("=== Certificate composition complete ===")
     return base_image

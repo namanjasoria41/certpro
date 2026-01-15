@@ -58,8 +58,8 @@ import io
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Optional: limit upload size (e.g. 8MB)
-app.config.setdefault("MAX_CONTENT_LENGTH", 8 * 1024 * 1024)
+# Increase upload size limit to 50MB to handle base64-encoded images
+app.config.setdefault("MAX_CONTENT_LENGTH", 50 * 1024 * 1024)
 
 # Session configuration for production
 app.config.setdefault("SESSION_COOKIE_SAMESITE", "Lax")

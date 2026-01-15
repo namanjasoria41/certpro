@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}Your Certificate{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+    .certificate-container {
+        min-height: calc(100vh - 120px);
+        background: linear-gradient(135deg, #0f0626, #1b0f3a, #0b1b2e);
+        padding: 40px 0;
+    }
+
+    .certificate-wrapper {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 20px;
+    }
+
+    .certificate-header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .certificate-header h2 {
+        font-size: 36px;
+        font-weight: 800;
+        background: linear-gradient(135deg, #6f5cff, #00ffd5);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 10px;
+    }
+
+    .certificate-header p {
+        color: #a8a8c7;
+        font-size: 16px;
+    }
+
+    .certificate-card {
+        background: rgba(10, 5, 30, 0.6);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 20px;
+        padding: 40px;
+        text-align: center;
+    }
+
+    .certificate-preview {
+        background: #0b1020;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 30px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .certificate-preview img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 8px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    .download-section {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .btn-download {
+        padding: 16px 32px;
+        background: linear-gradient(135deg, #6f5cff, #00ffd5);
+        border: none;
+        border-radius: 12px;
+        color: #000;
+        font-weight: 700;
+        font-size: 16px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 8px 25px rgba(111, 92, 255, 0.4);
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+    }
+
+    .btn-download:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 35px rgba(111, 92, 255, 0.6);
+        color: #000;
+    }
+
+    .btn-download i {
+        font-size: 20px;
+    }
+
+    .btn-secondary {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #eaeaf0;
+    }
+
+    .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.2);
+        color: #fff;
+    }
+
+    .success-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(0, 255, 213, 0.1);
+        border: 1px solid rgba(0, 255, 213, 0.3);
+        padding: 12px 20px;
+        border-radius: 50px;
+        color: #00ffd5;
+        font-weight: 600;
+        margin-bottom: 20px;
+    }
+
+    .success-badge i {
+        font-size: 20px;
+    }
+
+    @media (max-width: 576px) {
+        .certificate-card {
+            padding: 25px;
+        }
+
+        .download-section {
+            flex-direction: column;
+        }
+
+        .btn-download {
+            width: 100%;
+            justify-content: center;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="certificate-container">
+    <div class="certificate-wrapper">
+
+        <div class="certificate-header">
+            <h2>🎉 Certificate Generated!</h2>
+            <p>Your certificate has been successfully created</p>
+        </div>
+
+        <div class="certificate-card">
+
+            <div class="success-badge">
+                <i class="bi bi-check-circle-fill"></i>
+                <span>Payment Successful</span>
+            </div>
+
+            <div class="certificate-preview">
+                <img src="{{ url_for('static', filename='generated/' + filename) }}" alt="Certificate">
+            </div>
+
+            <div class="download-section">
+                <a href="{{ url_for('download_certificate_image', filename=filename) }}" class="btn-download" download>
+                    <i class="bi bi-download"></i>
+                    Download Image (PNG)
+                </a>
+
+                <a href="{{ url_for('generate_pdf', template_id=template_id) }}" class="btn-download btn-secondary">
+                    <i class="bi bi-file-pdf"></i>
+                    Download PDF
+                </a>
+
+                <a href="{{ url_for('index') }}" class="btn-download btn-secondary">
+                    <i class="bi bi-house"></i>
+                    Back to Home
+                </a>
+            </div>
+
+        </div>
+
+    </div>
+</div>
+{% endblock %}

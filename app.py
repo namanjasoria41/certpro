@@ -1171,11 +1171,35 @@ def category_view(category):
 
 
 
-@app.route("/generated/<filename>")
+@app.route("/certificate/<filename>")
 @login_required
 def view_certificate(filename):
+    """Display certificate with download options"""
     generated_folder = getattr(Config, "GENERATED_FOLDER", "static/generated")
-    return send_from_directory(generated_folder, filename)
+    filepath = os.path.join(generated_folder, filename)
+    
+    if not os.path.exists(filepath):
+        flash("Certificate not found.", "danger")
+        return redirect(url_for("index"))
+    
+    # Extract template_id from filename if possible (format: certificate_userid_templateid_timestamp.png)
+    template_id = None
+    try:
+        parts = filename.replace('.png', '').split('_')
+        if len(parts) >= 3:
+            template_id = int(parts[2])
+    except Exception:
+        pass
+    
+    return render_template("view_certificate.html", filename=filename, template_id=template_id)
+
+
+@app.route("/download/certificate/<filename>")
+@login_required
+def download_certificate_image(filename):
+    """Download certificate image file"""
+    generated_folder = getattr(Config, "GENERATED_FOLDER", "static/generated")
+    return send_from_directory(generated_folder, filename, as_attachment=True)
 
 
 @app.route("/preview/<filename>")

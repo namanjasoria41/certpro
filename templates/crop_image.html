@@ -198,12 +198,44 @@
         }
 
         @media (max-width: 576px) {
+            body {
+                padding: 10px;
+            }
+
             .crop-container-wrapper {
-                padding: 20px;
+                padding: 20px 15px;
+            }
+
+            .crop-header h4 {
+                font-size: clamp(18px, 5vw, 24px);
+            }
+
+            .crop-image-container {
+                max-height: 300px;
             }
 
             .crop-controls {
                 grid-template-columns: 1fr;
+            }
+
+            .btn-control {
+                min-height: 44px;
+                font-size: 15px;
+            }
+
+            .action-buttons {
+                grid-template-columns: 1fr;
+            }
+
+            .btn-cancel,
+            .btn-save {
+                min-height: 48px;
+                font-size: 16px;
+            }
+
+            .preview-box {
+                width: 120px;
+                height: 120px;
             }
         }
     </style>

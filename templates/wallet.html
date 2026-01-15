@@ -233,16 +233,51 @@
   }
 
   @media (max-width: 768px) {
+    .wallet-container {
+      padding: 20px 15px;
+    }
+
+    .wallet-header h2 {
+      font-size: clamp(24px, 6vw, 32px);
+    }
+
+    .glass-card {
+      padding: 20px;
+    }
+
     .form-row {
       grid-template-columns: 1fr;
+    }
+
+    .btn-primary {
+      width: 100%;
+      min-height: 48px;
     }
 
     .quick-amounts {
       grid-template-columns: repeat(2, 1fr);
     }
 
+    .quick-btn {
+      min-height: 44px;
+      font-size: 15px;
+    }
+
     .balance-amount {
-      font-size: 36px;
+      font-size: clamp(32px, 8vw, 48px);
+    }
+
+    .card-title {
+      font-size: 18px;
+    }
+
+    .transaction-table {
+      font-size: 13px;
+    }
+
+    .transaction-table th,
+    .transaction-table td {
+      padding: 12px 8px;
     }
   }
 </style>

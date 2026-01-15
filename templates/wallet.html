@@ -1,97 +1,313 @@
 {% extends "base.html" %}
 
-{% block title %}My Wallet - CertPro{% endblock %}
+{% block title %}My Wallet - Banner Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+  .wallet-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 20px;
+  }
+
+  .wallet-header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  .wallet-header h2 {
+    font-size: 32px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #6f5cff, #00ffd5);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 8px;
+  }
+
+  .glass-card {
+    background: rgba(10, 5, 30, 0.85);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    padding: 30px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    margin-bottom: 24px;
+  }
+
+  .balance-card {
+    text-align: center;
+    background: linear-gradient(135deg, rgba(111, 92, 255, 0.2), rgba(0, 255, 213, 0.2));
+    border: 2px solid rgba(0, 255, 213, 0.3);
+  }
+
+  .balance-label {
+    font-size: 14px;
+    color: #a8a8c7;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .balance-amount {
+    font-size: 48px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #6f5cff, #00ffd5);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 0;
+  }
+
+  .card-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #eaeaf0;
+    margin-bottom: 24px;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+    align-items: end;
+    margin-bottom: 20px;
+  }
+
+  .form-group {
+    margin-bottom: 0;
+  }
+
+  .form-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: #eaeaf0;
+    margin-bottom: 8px;
+  }
+
+  .form-input {
+    width: 100%;
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    color: #eaeaf0;
+    font-size: 15px;
+    transition: all 0.2s ease;
+  }
+
+  .form-input:focus {
+    outline: none;
+    background: rgba(255, 255, 255, 0.08);
+    border-color: #6f5cff;
+    box-shadow: 0 0 0 3px rgba(111, 92, 255, 0.1);
+  }
+
+  .btn-primary {
+    padding: 14px 32px;
+    background: linear-gradient(135deg, #6f5cff, #00ffd5);
+    border: none;
+    border-radius: 10px;
+    color: #000;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 8px 25px rgba(111, 92, 255, 0.4);
+    white-space: nowrap;
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 35px rgba(111, 92, 255, 0.6);
+  }
+
+  .quick-amounts {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .quick-btn {
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    color: #eaeaf0;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .quick-btn:hover {
+    background: rgba(111, 92, 255, 0.2);
+    border-color: #6f5cff;
+  }
+
+  .quick-label {
+    font-size: 12px;
+    color: #a8a8c7;
+    margin-bottom: 12px;
+  }
+
+  .payment-card {
+    background: rgba(0, 255, 213, 0.1);
+    border-color: rgba(0, 255, 213, 0.3);
+  }
+
+  .payment-info {
+    font-size: 16px;
+    color: #eaeaf0;
+    margin-bottom: 20px;
+  }
+
+  .payment-info strong {
+    color: #00ffd5;
+    font-size: 20px;
+  }
+
+  .table-wrapper {
+    overflow-x: auto;
+    border-radius: 12px;
+  }
+
+  .transaction-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .transaction-table thead {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .transaction-table th {
+    padding: 16px;
+    text-align: left;
+    font-size: 13px;
+    font-weight: 700;
+    color: #a8a8c7;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .transaction-table td {
+    padding: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    color: #eaeaf0;
+    font-size: 14px;
+  }
+
+  .transaction-table tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .badge {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .badge-credit {
+    background: rgba(0, 255, 213, 0.2);
+    color: #00ffd5;
+  }
+
+  .badge-debit {
+    background: rgba(255, 107, 107, 0.2);
+    color: #ff6b6b;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #a8a8c7;
+  }
+
+  .empty-state i {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.3;
+  }
+
+  @media (max-width: 768px) {
+    .form-row {
+      grid-template-columns: 1fr;
+    }
+
+    .quick-amounts {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .balance-amount {
+      font-size: 36px;
+    }
+  }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-  <div class="row mb-3">
-    <div class="col-md-12">
-      <h2>My Wallet</h2>
-    </div>
+<div class="wallet-container">
+  <div class="wallet-header">
+    <h2>My Wallet</h2>
   </div>
 
-  <div class="row">
-    <!-- Current Balance -->
-    <div class="col-md-4 mb-4">
-      <div class="card shadow-sm">
-        <div class="card-body text-center">
-          <h5 class="card-title">Current Balance</h5>
-          <p class="display-6 mt-2 mb-0">
-            ₹ {{ "%.2f"|format(current_user.wallet_balance or 0) }}
-          </p>
-        </div>
+  <div class="row g-4">
+    <!-- Balance Card -->
+    <div class="col-md-4">
+      <div class="glass-card balance-card">
+        <div class="balance-label">Current Balance</div>
+        <div class="balance-amount">₹{{ "%.2f"|format(current_user.wallet_balance or 0) }}</div>
       </div>
     </div>
 
-    <!-- Add Money -->
-    <div class="col-md-8 mb-4">
-      <div class="card shadow-sm">
-        <div class="card-body">
-          <h5 class="card-title">Add Money to Wallet</h5>
+    <!-- Add Money Card -->
+    <div class="col-md-8">
+      <div class="glass-card">
+        <h5 class="card-title">Add Money to Wallet</h5>
 
-          <form method="POST" action="{{ url_for('add_money') }}" class="row g-3 mt-1">
-            <div class="col-md-8">
+        <form method="POST" action="{{ url_for('add_money') }}">
+          <div class="form-row">
+            <div class="form-group">
               <label for="amount" class="form-label">Amount (₹)</label>
-              <input type="number" id="amount" name="amount" min="300" step="1"
-                     class="form-control" placeholder="Minimum ₹300" required>
+              <input type="number" id="amount" name="amount" min="300" step="1" class="form-input"
+                placeholder="Minimum ₹300" required>
             </div>
-
-            <div class="col-md-4 d-flex align-items-end">
-              <button type="submit" class="btn btn-success w-100">
-                Add Money
-              </button>
-            </div>
-          </form>
-
-          <!-- Quick Amount Buttons -->
-          <div class="mt-3">
-            <small class="text-muted">Quick Add:</small><br>
-            <button class="btn btn-sm btn-outline-secondary mt-2"
-                    onclick="document.getElementById('amount').value='300'">
-              ₹300
-            </button>
-            <button class="btn btn-sm btn-outline-secondary mt-2"
-                    onclick="document.getElementById('amount').value='500'">
-              ₹500
-            </button>
-            <button class="btn btn-sm btn-outline-secondary mt-2"
-                    onclick="document.getElementById('amount').value='1000'">
-              ₹1000
-            </button>
-            <button class="btn btn-sm btn-outline-secondary mt-2"
-                    onclick="document.getElementById('amount').value='2000'">
-              ₹2000
-            </button>
+            <button type="submit" class="btn-primary">Add Money</button>
           </div>
-        </div>
+
+          <div class="quick-label">Quick Add:</div>
+          <div class="quick-amounts">
+            <button type="button" class="quick-btn"
+              onclick="document.getElementById('amount').value='300'">₹300</button>
+            <button type="button" class="quick-btn"
+              onclick="document.getElementById('amount').value='500'">₹500</button>
+            <button type="button" class="quick-btn"
+              onclick="document.getElementById('amount').value='1000'">₹1000</button>
+            <button type="button" class="quick-btn"
+              onclick="document.getElementById('amount').value='2000'">₹2000</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
 
-  <!-- Razorpay Checkout Section -->
+  <!-- Razorpay Payment Section -->
   {% if razorpay_order_id %}
-  <div class="row mt-4">
-    <div class="col-md-12">
-      <div class="card border-success shadow-sm">
-        <div class="card-body">
-          <h5 class="card-title mb-3">Complete Payment</h5>
-          <p class="mb-2">
-            Order Amount:
-            <strong>₹ {{ "%.2f"|format(amount) }}</strong>
-          </p>
-          <button id="rzp-button" class="btn btn-success">
-            Pay with Razorpay
-          </button>
-
-          <form id="razorpay-callback-form" method="POST"
-                action="{{ url_for('payment_verify') }}" class="d-none">
-            <input type="hidden" name="razorpay_payment_id" id="razorpay_payment_id">
-            <input type="hidden" name="razorpay_order_id" id="razorpay_order_id">
-            <input type="hidden" name="razorpay_signature" id="razorpay_signature">
-          </form>
-        </div>
-      </div>
+  <div class="glass-card payment-card">
+    <h5 class="card-title">Complete Payment</h5>
+    <div class="payment-info">
+      Order Amount: <strong>₹{{ "%.2f"|format(amount) }}</strong>
     </div>
+    <button id="rzp-button" class="btn-primary">Pay with Razorpay</button>
+
+    <form id="razorpay-callback-form" method="POST" action="{{ url_for('payment_verify') }}" style="display: none;">
+      <input type="hidden" name="razorpay_payment_id" id="razorpay_payment_id">
+      <input type="hidden" name="razorpay_order_id" id="razorpay_order_id">
+      <input type="hidden" name="razorpay_signature" id="razorpay_signature">
+    </form>
   </div>
 
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
@@ -100,7 +316,7 @@
       "key": "{{ razorpay_key_id }}",
       "amount": "{{ (amount * 100)|int }}",
       "currency": "INR",
-      "name": "CertPro Wallet Top-up",
+      "name": "Banner Hub Wallet Top-up",
       "description": "Add money to wallet",
       "order_id": "{{ razorpay_order_id }}",
       "handler": function (response) {
@@ -113,61 +329,56 @@
         "email": "{{ current_user.email or '' }}"
       },
       "theme": {
-        "color": "#0d6efd"
+        "color": "#6f5cff"
       }
     };
     var rzp1 = new Razorpay(options);
-    document.getElementById('rzp-button').onclick = function(e){
+    document.getElementById('rzp-button').onclick = function (e) {
       rzp1.open();
       e.preventDefault();
     }
   </script>
   {% endif %}
 
-  <!-- Transactions Table -->
-  <div class="row mt-4">
-    <div class="col-md-12">
-      <div class="card shadow-sm">
-        <div class="card-body">
-          <h5 class="card-title">Transaction History</h5>
+  <!-- Transaction History -->
+  <div class="glass-card">
+    <h5 class="card-title">Transaction History</h5>
 
-          {% if transactions %}
-          <div class="table-responsive">
-            <table class="table table-striped table-hover mt-3">
-              <thead>
-                <tr>
-                  <th>Date &amp; Time</th>
-                  <th>Type</th>
-                  <th>Amount (₹)</th>
-                  <th>Description</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for txn in transactions %}
-                <tr>
-                  <td>{{ txn.timestamp.strftime("%d-%m-%Y %H:%M") if txn.timestamp else "-" }}</td>
-                  <td>
-                    {% if txn.transaction_type == 'credit' %}
-                    <span class="badge bg-success">Credit</span>
-                    {% else %}
-                    <span class="badge bg-danger">Debit</span>
-                    {% endif %}
-                  </td>
-                  <td>{{ "%.2f"|format(txn.amount or 0) }}</td>
-                  <td>{{ txn.description or "-" }}</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-          {% else %}
-          <div class="alert alert-info mt-3">
-            No transactions yet.
-          </div>
-          {% endif %}
-        </div>
-      </div>
+    {% if transactions %}
+    <div class="table-wrapper">
+      <table class="transaction-table">
+        <thead>
+          <tr>
+            <th>Date & Time</th>
+            <th>Type</th>
+            <th>Amount (₹)</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for txn in transactions %}
+          <tr>
+            <td>{{ txn.timestamp.strftime("%d-%m-%Y %H:%M") if txn.timestamp else "-" }}</td>
+            <td>
+              {% if txn.transaction_type == 'credit' %}
+              <span class="badge badge-credit">Credit</span>
+              {% else %}
+              <span class="badge badge-debit">Debit</span>
+              {% endif %}
+            </td>
+            <td>{{ "%.2f"|format(txn.amount or 0) }}</td>
+            <td>{{ txn.description or "-" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
+    {% else %}
+    <div class="empty-state">
+      <div>📊</div>
+      <p>No transactions yet</p>
+    </div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

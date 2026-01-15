@@ -1,70 +1,201 @@
 {% extends "base.html" %}
 
-{% block title %}Register - Certificate Generator{% endblock %}
+{% block title %}Register - Banner Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .auth-container {
+        min-height: calc(100vh - 80px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 20px;
+    }
+
+    .auth-card {
+        width: 100%;
+        max-width: 500px;
+        background: rgba(10, 5, 30, 0.85);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 20px;
+        padding: 40px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .auth-header {
+        text-align: center;
+        margin-bottom: 32px;
+    }
+
+    .auth-header h2 {
+        font-size: 28px;
+        font-weight: 700;
+        background: linear-gradient(135deg, #6f5cff, #00ffd5);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 8px;
+    }
+
+    .auth-header p {
+        color: #a8a8c7;
+        font-size: 14px;
+        margin: 0;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 14px;
+        font-weight: 600;
+        color: #eaeaf0;
+        margin-bottom: 8px;
+    }
+
+    .form-label .optional {
+        color: #a8a8c7;
+        font-weight: 400;
+        font-size: 12px;
+    }
+
+    .form-input {
+        width: 100%;
+        padding: 14px 16px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 10px;
+        color: #eaeaf0;
+        font-size: 15px;
+        transition: all 0.2s ease;
+    }
+
+    .form-input:focus {
+        outline: none;
+        background: rgba(255, 255, 255, 0.08);
+        border-color: #6f5cff;
+        box-shadow: 0 0 0 3px rgba(111, 92, 255, 0.1);
+    }
+
+    .form-input::placeholder {
+        color: #6b6b8a;
+    }
+
+    .form-hint {
+        font-size: 12px;
+        color: #a8a8c7;
+        margin-top: 6px;
+    }
+
+    .btn-primary {
+        width: 100%;
+        padding: 14px;
+        background: linear-gradient(135deg, #6f5cff, #00ffd5);
+        border: none;
+        border-radius: 12px;
+        color: #000;
+        font-weight: 700;
+        font-size: 16px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 8px 25px rgba(111, 92, 255, 0.4);
+        margin-top: 8px;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 35px rgba(111, 92, 255, 0.6);
+    }
+
+    .btn-primary:active {
+        transform: translateY(0);
+    }
+
+    .auth-links {
+        margin-top: 24px;
+        text-align: center;
+    }
+
+    .auth-links a {
+        color: #00ffd5;
+        text-decoration: none;
+        font-size: 14px;
+        transition: color 0.2s ease;
+    }
+
+    .auth-links a:hover {
+        color: #6f5cff;
+    }
+
+    .auth-links p {
+        margin: 0;
+        color: #a8a8c7;
+        font-size: 14px;
+    }
+
+    .divider {
+        height: 1px;
+        background: rgba(255, 255, 255, 0.12);
+        margin: 20px 0;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-body">
-                <h2 class="card-title text-center mb-4">Register</h2>
-                <form method="POST">
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Email (optional)</label>
-                        <input type="email"
-                               class="form-control"
-                               id="email"
-                               name="email"
-                               placeholder="you@example.com">
-                    </div>
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <h2>Create Account</h2>
+            <p>Join Banner Hub today</p>
+        </div>
 
-                    <div class="mb-3">
-                        <label for="phone" class="form-label">Mobile Number (optional)</label>
-                        <input type="text"
-                               class="form-control"
-                               id="phone"
-                               name="phone"
-                               placeholder="10-digit mobile number">
-                        <div class="form-text">
-                            You must provide at least email or mobile.
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
-                        <input type="password"
-                               class="form-control"
-                               id="password"
-                               name="password"
-                               required>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="confirm_password" class="form-label">Confirm Password</label>
-                        <input type="password"
-                               class="form-control"
-                               id="confirm_password"
-                               name="confirm_password"
-                               required>
-                    </div>
-
-                    <!-- Referral code input -->
-                    <div class="mb-3">
-                        <label for="referral_code" class="form-label">Referral Code (optional)</label>
-                        <input type="text"
-                               class="form-control"
-                               id="referral_code"
-                               name="referral_code"
-                               placeholder="Enter referral code if you have one">
-                    </div>
-
-                    <button type="submit" class="btn btn-primary w-100">Register</button>
-                </form>
-
-                <div class="mt-3 text-center">
-                    <p>Already have an account? <a href="{{ url_for('login') }}">Login here</a></p>
-                </div>
+        <form method="POST">
+            <div class="form-group">
+                <label for="email" class="form-label">
+                    Email <span class="optional">(optional)</span>
+                </label>
+                <input type="email" class="form-input" id="email" name="email" placeholder="you@example.com"
+                    autocomplete="email">
             </div>
+
+            <div class="form-group">
+                <label for="phone" class="form-label">
+                    Mobile Number <span class="optional">(optional)</span>
+                </label>
+                <input type="text" class="form-input" id="phone" name="phone" placeholder="10-digit mobile number"
+                    autocomplete="tel">
+                <div class="form-hint">You must provide at least email or mobile</div>
+            </div>
+
+            <div class="form-group">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" class="form-input" id="password" name="password"
+                    placeholder="Create a strong password" required autocomplete="new-password">
+            </div>
+
+            <div class="form-group">
+                <label for="confirm_password" class="form-label">Confirm Password</label>
+                <input type="password" class="form-input" id="confirm_password" name="confirm_password"
+                    placeholder="Re-enter your password" required autocomplete="new-password">
+            </div>
+
+            <div class="form-group">
+                <label for="referral_code" class="form-label">
+                    Referral Code <span class="optional">(optional)</span>
+                </label>
+                <input type="text" class="form-input" id="referral_code" name="referral_code"
+                    placeholder="Enter referral code if you have one">
+            </div>
+
+            <button type="submit" class="btn-primary">Create Account</button>
+        </form>
+
+        <div class="auth-links">
+            <div class="divider"></div>
+            <p>Already have an account? <a href="{{ url_for('login') }}">Sign In</a></p>
         </div>
     </div>
 </div>

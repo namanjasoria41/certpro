@@ -362,11 +362,22 @@
                 canvas = circleCanvas;
             }
 
+            const imageData = canvas.toDataURL("image/png");
+
+            // Check size (10MB limit)
+            const sizeInBytes = imageData.length * 0.75; // Base64 is ~33% larger
+            const sizeInMB = sizeInBytes / (1024 * 1024);
+
+            if (sizeInMB > 10) {
+                alert(`Image is too large (${sizeInMB.toFixed(2)}MB). Please crop a smaller area or use a lower quality image. Maximum size is 10MB.`);
+                return;
+            }
+
             // Save to backend
             fetch(`/template/${TEMPLATE_ID}/crop/${FIELD}/save`, {
                 method: "POST",
                 headers: { "Content-Type": "text/plain" },
-                body: canvas.toDataURL("image/png")
+                body: imageData
             })
                 .then(response => {
                     if (!response.ok) {

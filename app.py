@@ -291,6 +291,10 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
     values = values or {}
     file_map = file_map or {}
 
+    app.logger.info(f"compose_image_from_fields called with {len(fields)} fields")
+    app.logger.info(f"Values received: {values}")
+    app.logger.info(f"File map received: {list(file_map.keys())}")
+
     # Always load base image safely (DB → disk → URL)
     base_image = open_template_image_for_pil(template)
     draw = ImageDraw.Draw(base_image)
@@ -298,6 +302,7 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
     for field in fields:
         key = getattr(field, "field_name", None) or getattr(field, "name", None)
         if not key:
+            app.logger.warning(f"Field has no name, skipping")
             continue
 
         ftype = (getattr(field, "field_type", None)
@@ -324,11 +329,14 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
         if ftype == "image":
             img_path = file_map.get(key)
             if not img_path or not os.path.exists(img_path):
+                app.logger.warning(f"Image field '{key}': no file or file not found at {img_path}")
                 continue
 
             try:
                 user_img = Image.open(img_path).convert("RGBA")
-            except Exception:
+                app.logger.info(f"Processing image field '{key}' at ({x}, {y})")
+            except Exception as e:
+                app.logger.error(f"Failed to open image for field '{key}': {e}")
                 continue
 
             if width and height:
@@ -343,17 +351,22 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
                 user_img.putalpha(mask)
 
             base_image.paste(user_img, (int(x), int(y)), user_img)
+            app.logger.info(f"Successfully pasted image for field '{key}'")
 
         # ---------------- TEXT FIELD ----------------
         else:
             text = values.get(key, "")
             if not text:
+                app.logger.warning(f"Text field '{key}': no value provided")
                 continue
+
+            app.logger.info(f"Processing text field '{key}' = '{text}' at ({x}, {y})")
 
             font_path = get_font_path_for_token(font_family)
             try:
                 font = ImageFont.truetype(font_path, int(font_size)) if font_path else ImageFont.load_default()
-            except Exception:
+            except Exception as e:
+                app.logger.warning(f"Failed to load font for field '{key}': {e}, using default")
                 font = ImageFont.load_default()
 
             text_width = draw.textbbox((0, 0), text, font=font)[2]
@@ -365,7 +378,9 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
                 tx -= text_width
 
             draw.text((tx, int(y)), text, fill=color, font=font)
+            app.logger.info(f"Successfully drew text for field '{key}'")
 
+    app.logger.info("Certificate composition complete")
     return base_image
 
 
@@ -1290,6 +1305,38 @@ def fill_template(template_id):
                     uploaded.save(filepath)
 
                     file_map[key] = filepath
+
+        # Log the collected data for debugging
+        app.logger.info(f"Generating certificate for template {template_id}")
+        app.logger.info(f"Field values: {field_values}")
+        app.logger.info(f"File map keys: {list(file_map.keys())}")
+
+        # Check wallet balance and deduct payment BEFORE generating certificate
+        if template.price and template.price > 0:
+            if current_user.wallet_balance < template.price:
+                flash(f"Insufficient balance. Need ₹{template.price:.2f}, have ₹{current_user.wallet_balance:.2f}", "danger")
+                return redirect(url_for("wallet"))
+            
+            # Deduct from wallet
+            current_user.wallet_balance -= template.price
+            
+            # Create transaction record
+            txn = Transaction(
+                user_id=current_user.id,
+                amount=template.price,
+                transaction_type="debit",
+                description=f"Certificate: {template.name}"
+            )
+            db.session.add(txn)
+            
+            try:
+                db.session.commit()
+                app.logger.info(f"Deducted ₹{template.price} from user {current_user.id} wallet")
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Failed to deduct payment: {e}")
+                flash("Payment processing failed. Please try again.", "danger")
+                return redirect(url_for("fill_template", template_id=template.id))
 
         try:
             composed = compose_image_from_fields(

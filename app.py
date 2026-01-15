@@ -298,6 +298,7 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
 
     # Always load base image safely (DB → disk → URL)
     base_image = open_template_image_for_pil(template)
+    print(f"Template image size: {base_image.size} (width x height)")
     draw = ImageDraw.Draw(base_image)
 
     for field in fields:
@@ -378,8 +379,13 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
             elif align == "right":
                 tx -= text_width
 
+            # Check if text is within image bounds
+            img_width, img_height = base_image.size
+            if tx < 0 or tx > img_width or int(y) < 0 or int(y) > img_height:
+                print(f"WARNING: Text at ({tx}, {y}) is outside image bounds ({img_width}x{img_height})")
+
             draw.text((tx, int(y)), text, fill=color, font=font)
-            print(f"Successfully drew text for field '{key}'")
+            print(f"Successfully drew text for field '{key}' at final position ({tx}, {y})")
 
     print("=== Certificate composition complete ===")
     return base_image

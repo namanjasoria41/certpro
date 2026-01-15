@@ -556,6 +556,9 @@
     });
     sessionStorage.setItem('form_data', JSON.stringify(formData));
 
+    // Save all currently uploaded images
+    sessionStorage.setItem('uploaded_images', JSON.stringify(uploadedImages));
+
     const reader = new FileReader();
     reader.onload = function (e) {
       sessionStorage.setItem("crop_image_data", e.target.result);
@@ -580,6 +583,43 @@
 
   // Check for returned from crop and restore form data
   window.addEventListener('DOMContentLoaded', () => {
+    // Restore previously uploaded images first
+    const savedImages = sessionStorage.getItem('uploaded_images');
+    if (savedImages) {
+      try {
+        const images = JSON.parse(savedImages);
+        Object.keys(images).forEach(fieldName => {
+          uploadedImages[fieldName] = images[fieldName];
+
+          // Display the image preview
+          const uploadArea = document.getElementById(`upload_${fieldName}`);
+          const previewArea = document.getElementById(`preview_${fieldName}`);
+          const imgElement = document.getElementById(`img_${fieldName}`);
+
+          if (uploadArea && previewArea && imgElement) {
+            uploadArea.style.display = 'none';
+            previewArea.style.display = 'block';
+            imgElement.src = images[fieldName];
+
+            const card = previewArea.closest('.field-card');
+            card.classList.add('completed');
+          }
+
+          // Create hidden input for form submission
+          let hiddenInput = document.querySelector(`input[name="${fieldName}"][type="hidden"]`);
+          if (!hiddenInput) {
+            hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = fieldName;
+            document.getElementById('fillForm').appendChild(hiddenInput);
+          }
+          hiddenInput.value = images[fieldName];
+        });
+      } catch (e) {
+        console.error('Error restoring uploaded images:', e);
+      }
+    }
+
     // Restore saved form data
     const savedFormData = sessionStorage.getItem('form_data');
     if (savedFormData) {
@@ -633,6 +673,9 @@
               document.getElementById('fillForm').appendChild(hiddenInput);
             }
             hiddenInput.value = data.image_data;
+
+            // Save updated images to sessionStorage
+            sessionStorage.setItem('uploaded_images', JSON.stringify(uploadedImages));
 
             updateProgress();
             updatePreview();

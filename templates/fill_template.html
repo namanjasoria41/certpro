@@ -487,9 +487,10 @@
     // Draw template background
     ctx.drawImage(templateImage, 0, 0);
 
-    // Draw text fields
+    // Draw fields
     FIELDS.forEach(field => {
       if (field.field_type === 'text') {
+        // Draw text fields
         const input = document.querySelector(`input[data-field="${field.field_name}"]`);
         if (input && input.value) {
           const text = input.value;
@@ -504,6 +505,35 @@
           ctx.textAlign = align;
           ctx.fillText(text, x, y + fontSize);
         }
+      } else if (field.field_type === 'image') {
+        // Draw image fields
+        const imageData = uploadedImages[field.field_name];
+        if (imageData) {
+          const img = new Image();
+          img.onload = function () {
+            const x = field.x || 0;
+            const y = field.y || 0;
+            const width = field.width || img.width;
+            const height = field.height || img.height;
+            const shape = field.shape || 'rect';
+
+            if (shape === 'circle') {
+              // Draw circular image
+              ctx.save();
+              const radius = Math.min(width, height) / 2;
+              ctx.beginPath();
+              ctx.arc(x + radius, y + radius, radius, 0, Math.PI * 2);
+              ctx.closePath();
+              ctx.clip();
+              ctx.drawImage(img, x, y, width, height);
+              ctx.restore();
+            } else {
+              // Draw rectangular image
+              ctx.drawImage(img, x, y, width, height);
+            }
+          };
+          img.src = imageData;
+        }
       }
     });
 
@@ -515,6 +545,16 @@
   function handleImagePick(event, fieldName) {
     const file = event.target.files[0];
     if (!file) return;
+
+    // Save all current form data to sessionStorage before redirecting
+    const formData = {};
+    document.querySelectorAll('.field-input').forEach(input => {
+      const field = input.getAttribute('data-field');
+      if (field && input.value) {
+        formData[field] = input.value;
+      }
+    });
+    sessionStorage.setItem('form_data', JSON.stringify(formData));
 
     const reader = new FileReader();
     reader.onload = function (e) {
@@ -538,26 +578,71 @@
     updatePreview();
   }
 
-  // Check for returned from crop
+  // Check for returned from crop and restore form data
   window.addEventListener('DOMContentLoaded', () => {
+    // Restore saved form data
+    const savedFormData = sessionStorage.getItem('form_data');
+    if (savedFormData) {
+      try {
+        const formData = JSON.parse(savedFormData);
+        Object.keys(formData).forEach(field => {
+          const input = document.querySelector(`input[data-field="${field}"]`);
+          if (input) {
+            input.value = formData[field];
+          }
+        });
+        // Clear after restoring
+        sessionStorage.removeItem('form_data');
+        updatePreview();
+      } catch (e) {
+        console.error('Error restoring form data:', e);
+      }
+    }
+
+    // Check if returning from crop page
     const fieldName = sessionStorage.getItem('crop_field_name');
     if (fieldName) {
-      // Mark as uploaded
-      uploadedImages[fieldName] = true;
+      // Fetch the cropped image from backend
+      fetch(`/template/${TEMPLATE_ID}/get_cropped_image/${fieldName}`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === 'success') {
+            // Store image data
+            uploadedImages[fieldName] = data.image_data;
 
-      const uploadArea = document.getElementById(`upload_${fieldName}`);
-      const previewArea = document.getElementById(`preview_${fieldName}`);
+            // Display image preview
+            const uploadArea = document.getElementById(`upload_${fieldName}`);
+            const previewArea = document.getElementById(`preview_${fieldName}`);
+            const imgElement = document.getElementById(`img_${fieldName}`);
 
-      if (uploadArea && previewArea) {
-        uploadArea.style.display = 'none';
-        previewArea.style.display = 'block';
+            if (uploadArea && previewArea && imgElement) {
+              uploadArea.style.display = 'none';
+              previewArea.style.display = 'block';
+              imgElement.src = data.image_data;
 
-        const card = previewArea.closest('.field-card');
-        card.classList.add('completed');
-      }
+              const card = previewArea.closest('.field-card');
+              card.classList.add('completed');
+            }
+
+            // Create hidden input to store image data for form submission
+            let hiddenInput = document.querySelector(`input[name="${fieldName}"][type="hidden"]`);
+            if (!hiddenInput) {
+              hiddenInput = document.createElement('input');
+              hiddenInput.type = 'hidden';
+              hiddenInput.name = fieldName;
+              document.getElementById('fillForm').appendChild(hiddenInput);
+            }
+            hiddenInput.value = data.image_data;
+
+            updateProgress();
+            updatePreview();
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching cropped image:', error);
+        });
 
       sessionStorage.removeItem('crop_field_name');
-      updateProgress();
     }
   });
 </script>

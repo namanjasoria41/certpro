@@ -1381,6 +1381,46 @@ def save_cropped_image(template_id, field):
         return jsonify({"status": "error", "message": "Failed to save image"}), 500
 
 
+@app.route("/template/<int:template_id>/get_cropped_image/<field>", methods=["GET"])
+@login_required
+def get_cropped_image(template_id, field):
+    """
+    Retrieve cropped image from session for a specific field.
+    Returns base64-encoded image data.
+    """
+    try:
+        preview_info = session.get("preview_info", {})
+        
+        # Check if this is the correct template
+        if preview_info.get("template_id") != template_id:
+            return jsonify({"status": "error", "message": "No image data for this template"}), 404
+        
+        asset_map = preview_info.get("asset_map", {})
+        filepath = asset_map.get(field)
+        
+        if not filepath or not os.path.exists(filepath):
+            return jsonify({"status": "error", "message": "Image not found"}), 404
+        
+        # Read image and convert to base64
+        with open(filepath, "rb") as f:
+            img_bytes = f.read()
+            img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+        
+        # Determine MIME type
+        ext = filepath.rsplit('.', 1)[-1].lower()
+        mime_type = f"image/{ext}" if ext in ['png', 'jpg', 'jpeg', 'gif'] else "image/png"
+        
+        return jsonify({
+            "status": "success",
+            "image_data": f"data:{mime_type};base64,{img_base64}",
+            "field": field
+        }), 200
+        
+    except Exception as e:
+        app.logger.exception(f"Error retrieving cropped image for field {field}: {e}")
+        return jsonify({"status": "error", "message": "Failed to retrieve image"}), 500
+
+
 # ---------------------------
 # Preview + Purchase flow
 # ---------------------------

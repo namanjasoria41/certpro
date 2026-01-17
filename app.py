@@ -415,32 +415,49 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
 
             print(f"Processing text field '{key}' = '{text}' at ({x}, {y})")
 
-            # Auto-scale font size for large images
+            # Check if text position is within image bounds BEFORE processing
             img_width, img_height = base_image.size
+            if x < 0 or x >= img_width or y < 0 or y >= img_height:
+                print(f"ERROR: Text field '{key}' at ({x}, {y}) is OUTSIDE image bounds ({img_width}x{img_height})")
+                print(f"SKIPPING this field - please reposition it in the template builder!")
+                continue  # Skip this field entirely
+
+            # Auto-scale font size for large images
             scale_factor = 1.0
             
             # If image is large (>1500px), scale up font sizes moderately
             if max(img_width, img_height) > 1500:
-                scale_factor = 1.5  # 1.5x larger fonts for 2000px images (reduced from 2.5x)
+                scale_factor = 1.5  # 1.5x larger fonts for 2000px images
                 print(f"Large image detected ({img_width}x{img_height}), scaling font by {scale_factor}x")
             
-            scaled_font_size = max(int(font_size * scale_factor), 36)  # Minimum 36px
+            scaled_font_size = max(int(font_size * scale_factor), 60)  # Minimum 60px for visibility
             print(f"Original font size: {font_size}, Scaled font size: {scaled_font_size}")
 
+            # Try to load font with multiple fallbacks
+            font = None
             font_path = get_font_path_for_token(font_family)
+            
             try:
                 if font_path and os.path.exists(font_path):
                     font = ImageFont.truetype(font_path, scaled_font_size)
-                    print(f"Loaded font from {font_path}")
+                    print(f"Loaded custom font from {font_path}")
                 else:
-                    # Use a default system font
-                    font = ImageFont.truetype("arial.ttf", scaled_font_size)
-                    print(f"Using default Arial font")
+                    # Try common system fonts
+                    for fallback_font in ["arial.ttf", "Arial.ttf", "DejaVuSans.ttf", "FreeSans.ttf"]:
+                        try:
+                            font = ImageFont.truetype(fallback_font, scaled_font_size)
+                            print(f"Loaded fallback font: {fallback_font}")
+                            break
+                        except:
+                            continue
             except Exception as e:
-                print(f"WARNING: Failed to load font for field '{key}': {e}, using PIL default")
-                # Fallback to PIL default (very basic)
+                print(f"WARNING: Font loading failed: {e}")
+
+            # If all font loading failed, use PIL default but warn user
+            if font is None:
+                print(f"ERROR: Could not load any TrueType fonts! Using PIL default (text may be tiny)")
                 font = ImageFont.load_default()
-                scaled_font_size = 24  # Default font doesn't support sizing
+                scaled_font_size = 10  # PIL default is very small
 
             # Calculate text dimensions
             try:
@@ -458,14 +475,14 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
             elif align == "right":
                 tx -= text_width
 
-            # Check if text is within image bounds
-            if tx < 0 or tx > img_width or int(y) < 0 or int(y) > img_height:
-                print(f"WARNING: Text at ({tx}, {y}) may be outside image bounds ({img_width}x{img_height})")
+            # Final bounds check after alignment
+            if tx < 0 or tx + text_width > img_width or int(y) + text_height > img_height:
+                print(f"WARNING: Text '{text}' at ({tx}, {y}) extends beyond image bounds after alignment")
 
             # Draw text with the specified color
             try:
                 draw.text((tx, int(y)), text, fill=color, font=font)
-                print(f"Successfully drew text '{text}' for field '{key}' at ({tx}, {y}) with font size {scaled_font_size}, color {color}")
+                print(f"✓ Successfully drew text '{text}' at ({tx}, {y}) with font size {scaled_font_size}, color {color}")
             except Exception as e:
                 print(f"ERROR: Failed to draw text for field '{key}': {e}")
 

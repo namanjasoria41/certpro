@@ -298,7 +298,27 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
 
     # Always load base image safely (DB → disk → URL)
     base_image = open_template_image_for_pil(template)
+    current_width, current_height = base_image.size
     print(f"Template image size: {base_image.size} (width x height)")
+    
+    # Check if template was resized and calculate scale factors
+    # Assume original size was stored or calculate from max dimension
+    max_dim = getattr(Config, "MAX_TEMPLATE_DIMENSION", 2000)
+    
+    # If we have original dimensions stored, use them; otherwise estimate
+    original_width = getattr(template, 'original_width', None)
+    original_height = getattr(template, 'original_height', None)
+    
+    # Calculate scale factors
+    scale_x = 1.0
+    scale_y = 1.0
+    
+    if original_width and original_height:
+        scale_x = current_width / original_width
+        scale_y = current_height / original_height
+        print(f"Template was resized from {original_width}x{original_height} to {current_width}x{current_height}")
+        print(f"Scale factors: X={scale_x:.3f}, Y={scale_y:.3f}")
+    
     draw = ImageDraw.Draw(base_image)
 
     for field in fields:
@@ -314,18 +334,32 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
         x = getattr(field, "x", None)
         if x is None:
             x = getattr(field, "x_position", 0) or 0
+        else:
+            x = int(x * scale_x)  # Scale X coordinate
 
         y = getattr(field, "y", None)
         if y is None:
             y = getattr(field, "y_position", 0) or 0
+        else:
+            y = int(y * scale_y)  # Scale Y coordinate
 
         color = getattr(field, "color", None) or getattr(field, "font_color", None) or "#000000"
         font_size = getattr(field, "font_size", None) or getattr(field, "size", None) or 24
         align = getattr(field, "align", "left") or "left"
+        
+        # Scale width and height if specified
         width = getattr(field, "width", None)
+        if width:
+            width = int(width * scale_x)
+        
         height = getattr(field, "height", None)
+        if height:
+            height = int(height * scale_y)
+            
         shape = getattr(field, "shape", None) or "rect"
         font_family = getattr(field, "font_family", None) or getattr(field, "font", None)
+        
+        print(f"Field '{key}': Original coords might have been scaled. Current position: ({x}, {y})")
 
         # ---------------- IMAGE FIELD ----------------
         if ftype == "image":

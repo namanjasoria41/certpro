@@ -331,18 +331,35 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
         if ftype == "image":
             img_path = file_map.get(key)
             if not img_path or not os.path.exists(img_path):
-                print(f"WARNING: Image field '{key}': no file or file not found at {img_path}")
+                print(f"WARNING: Image field '{key}': no file or file not found at {img_path}\"")
                 continue
 
             try:
                 user_img = Image.open(img_path).convert("RGBA")
-                print(f"Processing image field '{key}' at ({x}, {y})")
+                print(f"Processing image field '{key}' at ({x}, {y}), original size: {user_img.size}")
             except Exception as e:
                 print(f"ERROR: Failed to open image for field '{key}': {e}")
                 continue
 
+            # Resize image if width/height specified
             if width and height:
-                user_img = user_img.resize((int(width), int(height)), Image.LANCZOS)
+                target_width = int(width)
+                target_height = int(height)
+                
+                # Constrain image to template boundaries
+                img_width, img_height = base_image.size
+                max_width = img_width - int(x)
+                max_height = img_height - int(y)
+                
+                if target_width > max_width:
+                    print(f"WARNING: Image width {target_width} exceeds boundary, constraining to {max_width}")
+                    target_width = max_width
+                if target_height > max_height:
+                    print(f"WARNING: Image height {target_height} exceeds boundary, constraining to {max_height}")
+                    target_height = max_height
+                
+                user_img = user_img.resize((target_width, target_height), Image.LANCZOS)
+                print(f"Resized image to {target_width}x{target_height}")
 
             if shape == "circle":
                 size = min(user_img.size)
@@ -353,7 +370,7 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
                 user_img.putalpha(mask)
 
             base_image.paste(user_img, (int(x), int(y)), user_img)
-            print(f"Successfully pasted image for field '{key}'")
+            print(f"Successfully pasted image for field '{key}' at ({x}, {y})")
 
         # ---------------- TEXT FIELD ----------------
         else:
@@ -370,20 +387,36 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
             
             # If image is large (>1500px), scale up font sizes
             if max(img_width, img_height) > 1500:
-                scale_factor = 3.0  # 3x larger fonts for 2000px images
+                scale_factor = 2.5  # 2.5x larger fonts for 2000px images
                 print(f"Large image detected ({img_width}x{img_height}), scaling font by {scale_factor}x")
             
-            scaled_font_size = int(font_size * scale_factor)
+            scaled_font_size = max(int(font_size * scale_factor), 48)  # Minimum 48px
             print(f"Original font size: {font_size}, Scaled font size: {scaled_font_size}")
 
             font_path = get_font_path_for_token(font_family)
             try:
-                font = ImageFont.truetype(font_path, scaled_font_size) if font_path else ImageFont.load_default()
+                if font_path and os.path.exists(font_path):
+                    font = ImageFont.truetype(font_path, scaled_font_size)
+                    print(f"Loaded font from {font_path}")
+                else:
+                    # Use a default system font
+                    font = ImageFont.truetype("arial.ttf", scaled_font_size)
+                    print(f"Using default Arial font")
             except Exception as e:
-                print(f"WARNING: Failed to load font for field '{key}': {e}, using default")
+                print(f"WARNING: Failed to load font for field '{key}': {e}, using PIL default")
+                # Fallback to PIL default (very basic)
                 font = ImageFont.load_default()
+                scaled_font_size = 24  # Default font doesn't support sizing
 
-            text_width = draw.textbbox((0, 0), text, font=font)[2]
+            # Calculate text dimensions
+            try:
+                bbox = draw.textbbox((0, 0), text, font=font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+            except:
+                text_width = len(text) * scaled_font_size // 2
+                text_height = scaled_font_size
+
             tx = int(x)
 
             if align == "center":
@@ -393,10 +426,14 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
 
             # Check if text is within image bounds
             if tx < 0 or tx > img_width or int(y) < 0 or int(y) > img_height:
-                print(f"WARNING: Text at ({tx}, {y}) is outside image bounds ({img_width}x{img_height})")
+                print(f"WARNING: Text at ({tx}, {y}) may be outside image bounds ({img_width}x{img_height})")
 
-            draw.text((tx, int(y)), text, fill=color, font=font)
-            print(f"Successfully drew text for field '{key}' at final position ({tx}, {y}) with font size {scaled_font_size}")
+            # Draw text with the specified color
+            try:
+                draw.text((tx, int(y)), text, fill=color, font=font)
+                print(f"Successfully drew text '{text}' for field '{key}' at ({tx}, {y}) with font size {scaled_font_size}, color {color}")
+            except Exception as e:
+                print(f"ERROR: Failed to draw text for field '{key}': {e}")
 
     print("=== Certificate composition complete ===")
     return base_image

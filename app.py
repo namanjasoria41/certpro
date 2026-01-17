@@ -419,12 +419,12 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
             img_width, img_height = base_image.size
             scale_factor = 1.0
             
-            # If image is large (>1500px), scale up font sizes
+            # If image is large (>1500px), scale up font sizes moderately
             if max(img_width, img_height) > 1500:
-                scale_factor = 2.5  # 2.5x larger fonts for 2000px images
+                scale_factor = 1.5  # 1.5x larger fonts for 2000px images (reduced from 2.5x)
                 print(f"Large image detected ({img_width}x{img_height}), scaling font by {scale_factor}x")
             
-            scaled_font_size = max(int(font_size * scale_factor), 48)  # Minimum 48px
+            scaled_font_size = max(int(font_size * scale_factor), 36)  # Minimum 36px
             print(f"Original font size: {font_size}, Scaled font size: {scaled_font_size}")
 
             font_path = get_font_path_for_token(font_family)

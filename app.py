@@ -29,7 +29,7 @@ from flask_login import (
 )
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from sqlalchemy.exc import ProgrammingError, IntegrityError
 
@@ -211,7 +211,8 @@ def open_template_image_for_pil(template):
     # Resize if image is too large (prevents memory issues)
     max_dim = getattr(Config, "MAX_TEMPLATE_DIMENSION", 2000)
     width, height = img.size
-    
+    original_size = (width, height)  # builder coordinates are in this pixel space
+
     if width > max_dim or height > max_dim:
         # Calculate new dimensions maintaining aspect ratio
         if width > height:
@@ -227,7 +228,10 @@ def open_template_image_for_pil(template):
         )
         
         img = img.resize((new_width, new_height), Image.LANCZOS)
-    
+
+    # Remember the size the builder saw, so compose_image_from_fields can scale
+    # field coordinates correctly when the template was shrunk above.
+    img.original_size = original_size
     return img
 
 
@@ -305,9 +309,12 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
     # Assume original size was stored or calculate from max dimension
     max_dim = getattr(Config, "MAX_TEMPLATE_DIMENSION", 2000)
     
-    # If we have original dimensions stored, use them; otherwise estimate
-    original_width = getattr(template, 'original_width', None)
-    original_height = getattr(template, 'original_height', None)
+    # Original size = what the builder canvas used. Prefer a value stored on the
+    # template (if you ever add such columns), else the size recorded when the
+    # image was loaded (before it was shrunk to MAX_TEMPLATE_DIMENSION).
+    recorded_size = getattr(base_image, "original_size", None) or (None, None)
+    original_width = getattr(template, 'original_width', None) or recorded_size[0]
+    original_height = getattr(template, 'original_height', None) or recorded_size[1]
     
     # Calculate scale factors
     scale_x = 1.0
@@ -369,40 +376,46 @@ def compose_image_from_fields(template, fields, values=None, file_map=None):
                 continue
 
             try:
-                user_img = Image.open(img_path).convert("RGBA")
+                user_img = Image.open(img_path)
+                # Phone photos can carry an EXIF rotation flag; apply it so the photo is upright
+                user_img = ImageOps.exif_transpose(user_img).convert("RGBA")
                 print(f"Processing image field '{key}' at ({x}, {y}), original size: {user_img.size}")
             except Exception as e:
                 print(f"ERROR: Failed to open image for field '{key}': {e}")
                 continue
 
-            # Resize image if width/height specified
+            # Fit the photo into the placeholder box the admin drew in the builder.
+            # "Cover" fit: fill the whole box, keep the photo's proportions (no
+            # stretching), and crop the overflow equally from both sides (centered).
             if width and height:
-                target_width = int(width)
-                target_height = int(height)
-                
-                # Constrain image to template boundaries
-                img_width, img_height = base_image.size
-                max_width = img_width - int(x)
-                max_height = img_height - int(y)
-                
-                if target_width > max_width:
-                    print(f"WARNING: Image width {target_width} exceeds boundary, constraining to {max_width}")
-                    target_width = max_width
-                if target_height > max_height:
-                    print(f"WARNING: Image height {target_height} exceeds boundary, constraining to {max_height}")
-                    target_height = max_height
-                
-                user_img = user_img.resize((target_width, target_height), Image.LANCZOS)
-                print(f"Resized image to {target_width}x{target_height}")
+                target_width = max(1, int(width))
+                target_height = max(1, int(height))
+
+                if shape == "circle":
+                    # A circle is always a square box: use the smaller side
+                    target_width = target_height = min(target_width, target_height)
+
+                user_img = ImageOps.fit(
+                    user_img,
+                    (target_width, target_height),
+                    method=Image.LANCZOS,
+                    centering=(0.5, 0.5),
+                )
+                print(f"Fitted image to {target_width}x{target_height}")
 
             if shape == "circle":
+                # Draw the mask 4x larger and shrink it, so the circle edge is smooth
                 size = min(user_img.size)
-                mask = Image.new("L", (size, size), 0)
+                big = size * 4
+                mask = Image.new("L", (big, big), 0)
                 d = ImageDraw.Draw(mask)
-                d.ellipse((0, 0, size, size), fill=255)
-                user_img = user_img.crop((0, 0, size, size))
+                d.ellipse((0, 0, big - 1, big - 1), fill=255)
+                mask = mask.resize((size, size), Image.LANCZOS)
+                if user_img.size != (size, size):
+                    user_img = ImageOps.fit(user_img, (size, size), method=Image.LANCZOS, centering=(0.5, 0.5))
                 user_img.putalpha(mask)
 
+            # Paste using the photo's own alpha as the mask; PIL clips anything outside the template
             base_image.paste(user_img, (int(x), int(y)), user_img)
             print(f"Successfully pasted image for field '{key}' at ({x}, {y})")
 
@@ -1488,6 +1501,10 @@ def fill_template(template_id):
             "font_size": getattr(field, "font_size", None) or getattr(field, "size", 32) or 32,
             "color": getattr(field, "color", None) or getattr(field, "font_color", None) or "#000000",
             "align": getattr(field, "align", "left") or "left",
+            # Needed by the live preview so photos are drawn at the placeholder size
+            "width": getattr(field, "width", None),
+            "height": getattr(field, "height", None),
+            "shape": getattr(field, "shape", None) or "rect",
         }
         fields_data.append(field_dict)
     
@@ -1505,13 +1522,25 @@ def crop_image(template_id, field):
         field_name=field
     ).first()
 
-    shape = getattr(tf, "shape", "rect") if tf else "rect"
+    shape = (getattr(tf, "shape", None) or "rect") if tf else "rect"
+
+    # Lock the crop box to the placeholder's proportions, so the cropped photo
+    # drops into the poster without being stretched.
+    box_w = getattr(tf, "width", None) if tf else None
+    box_h = getattr(tf, "height", None) if tf else None
+    if shape == "circle":
+        aspect = 1.0
+    elif box_w and box_h:
+        aspect = float(box_w) / float(box_h)
+    else:
+        aspect = None
 
     return render_template(
         "crop_image.html",
         template=template,
         field=field,
-        shape=shape
+        shape=shape,
+        aspect=aspect,
     )
 
 @app.route("/template/<int:template_id>/crop/<field>/save", methods=["POST"])

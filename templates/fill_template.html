@@ -454,6 +454,42 @@
     updateProgress();
   });
 
+  // Loaded <img> objects per image field, so the preview draws them in order (no flicker)
+  const imageCache = {};
+
+  function getCachedImage(fieldName, dataUrl) {
+    const cached = imageCache[fieldName];
+    if (cached && cached.dataUrl === dataUrl) {
+      return cached.img.complete && cached.img.naturalWidth ? cached.img : null;
+    }
+    const img = new Image();
+    img.onload = () => updatePreview();
+    img.src = dataUrl;
+    imageCache[fieldName] = { dataUrl, img };
+    return null;
+  }
+
+  // Draw img so it fills the box x,y,w,h without stretching; the overflow is cropped equally on both sides
+  function drawCover(img, x, y, w, h) {
+    const imgRatio = img.width / img.height;
+    const boxRatio = w / h;
+    let sw, sh, sx, sy;
+    if (imgRatio > boxRatio) {
+      sh = img.height;
+      sw = sh * boxRatio;
+      sx = (img.width - sw) / 2;
+      sy = 0;
+    } else {
+      sw = img.width;
+      sh = sw / boxRatio;
+      sx = 0;
+      sy = (img.height - sh) / 2;
+    }
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  }
+
   function updateProgress() {
     const totalFields = FIELDS.length;
     let completedFields = 0;
@@ -506,33 +542,29 @@
           ctx.fillText(text, x, y + fontSize);
         }
       } else if (field.field_type === 'image') {
-        // Draw image fields
+        // Draw image fields (same fit rules as the server: fill the box, keep proportions, centered)
         const imageData = uploadedImages[field.field_name];
         if (imageData) {
-          const img = new Image();
-          img.onload = function () {
-            const x = field.x || 0;
-            const y = field.y || 0;
-            const width = field.width || img.width;
-            const height = field.height || img.height;
-            const shape = field.shape || 'rect';
+          const img = getCachedImage(field.field_name, imageData);
+          if (!img) return; // still loading; updatePreview() runs again once it is ready
 
-            if (shape === 'circle') {
-              // Draw circular image
-              ctx.save();
-              const radius = Math.min(width, height) / 2;
-              ctx.beginPath();
-              ctx.arc(x + radius, y + radius, radius, 0, Math.PI * 2);
-              ctx.closePath();
-              ctx.clip();
-              ctx.drawImage(img, x, y, width, height);
-              ctx.restore();
-            } else {
-              // Draw rectangular image
-              ctx.drawImage(img, x, y, width, height);
-            }
-          };
-          img.src = imageData;
+          const x = field.x || 0;
+          const y = field.y || 0;
+          const shape = field.shape || 'rect';
+          let width = field.width || img.width;
+          let height = field.height || img.height;
+
+          ctx.save();
+          if (shape === 'circle') {
+            const d = Math.min(width, height);
+            width = height = d;
+            ctx.beginPath();
+            ctx.arc(x + d / 2, y + d / 2, d / 2, 0, Math.PI * 2);
+            ctx.closePath();
+            ctx.clip();
+          }
+          drawCover(img, x, y, width, height);
+          ctx.restore();
         }
       }
     });

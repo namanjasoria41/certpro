@@ -39,7 +39,10 @@ function initializeCanvas() {
   canvas.on("selection:created", handleSelection);
   canvas.on("selection:updated", handleSelection);
   canvas.on("selection:cleared", clearSelection);
-  canvas.on("object:modified", saveState);
+  canvas.on("object:modified", (e) => {
+    normalizeImageScale(e.target);
+    saveState();
+  });
   canvas.on("object:added", () => {
     updateFieldList();
     updateFieldCount();
@@ -72,8 +75,8 @@ function loadExistingFields() {
 
 function createTextField(config = {}) {
   const text = new fabric.Textbox(config.text || "Sample Text", {
-    left: config.x || canvas.width / 2 - 75,
-    top: config.y || canvas.height / 2 - 20,
+    left: pick(config.x, canvas.width / 2 - 75),
+    top: pick(config.y, canvas.height / 2 - 20),
     fontSize: config.font_size || 32,
     fill: config.color || "#ffffff",
     fontFamily: getFontFamily(config.font_family || "default"),
@@ -94,33 +97,74 @@ function createTextField(config = {}) {
   return text;
 }
 
+// Use fallback only when the value is really missing (so a saved x or y of 0 is kept)
+function pick(value, fallback) {
+  return value === undefined || value === null || value === "" ? fallback : value;
+}
+
+// Real size of an image placeholder in pixels, including any resizing done with the mouse handles
+function getImageBox(obj) {
+  if (obj.type === "circle") {
+    const d = Math.round(obj.radius * 2 * obj.scaleX);
+    return { width: d, height: d };
+  }
+  return {
+    width: Math.round(obj.width * obj.scaleX),
+    height: Math.round(obj.height * obj.scaleY),
+  };
+}
+
+// After the admin drags a resize handle, fold the scale into the real size,
+// so what is shown, what is saved and what the poster uses are always identical.
+function normalizeImageScale(obj) {
+  if (!obj || !obj.fieldData || obj.fieldData.type !== "image") return;
+  if (obj.scaleX === 1 && obj.scaleY === 1) return;
+
+  if (obj.type === "circle") {
+    obj.set({ radius: obj.radius * obj.scaleX, scaleX: 1, scaleY: 1 });
+  } else {
+    obj.set({
+      width: obj.width * obj.scaleX,
+      height: obj.height * obj.scaleY,
+      scaleX: 1,
+      scaleY: 1,
+    });
+  }
+  obj.setCoords();
+  canvas.renderAll();
+  if (selected === obj) showImageProperties();
+}
+
 function createImageField(config = {}) {
-  const width = config.width || 150;
-  const height = config.height || 150;
+  const width = pick(config.width, 150);
+  const height = pick(config.height, 150);
   const shape = config.shape || "rect";
-  
+
   let placeholder;
-  
+
   if (shape === "circle") {
     const radius = Math.min(width, height) / 2;
     placeholder = new fabric.Circle({
-      left: config.x || canvas.width / 2 - radius,
-      top: config.y || canvas.height / 2 - radius,
+      left: pick(config.x, canvas.width / 2 - radius),
+      top: pick(config.y, canvas.height / 2 - radius),
       radius: radius,
       fill: "rgba(255, 255, 255, 0.15)",
       stroke: "#00ffd5",
       strokeWidth: 2,
+      strokeUniform: true,
       strokeDashArray: [8, 4],
+      lockUniScaling: true, // a circle must stay a circle
     });
   } else {
     placeholder = new fabric.Rect({
-      left: config.x || canvas.width / 2 - width / 2,
-      top: config.y || canvas.height / 2 - height / 2,
+      left: pick(config.x, canvas.width / 2 - width / 2),
+      top: pick(config.y, canvas.height / 2 - height / 2),
       width: width,
       height: height,
       fill: "rgba(255, 255, 255, 0.15)",
       stroke: "#00ffd5",
       strokeWidth: 2,
+      strokeUniform: true,
       strokeDashArray: [8, 4],
     });
   }
@@ -242,13 +286,9 @@ function showImageProperties() {
   // Populate values
   document.getElementById("propFieldNameImg").value = selected.fieldData.name || "";
   
-  if (selected.type === "circle") {
-    document.getElementById("propWidth").value = Math.round(selected.radius * 2);
-    document.getElementById("propHeight").value = Math.round(selected.radius * 2);
-  } else {
-    document.getElementById("propWidth").value = Math.round(selected.width * selected.scaleX);
-    document.getElementById("propHeight").value = Math.round(selected.height * selected.scaleY);
-  }
+  const box = getImageBox(selected);
+  document.getElementById("propWidth").value = box.width;
+  document.getElementById("propHeight").value = box.height;
   
   document.getElementById("propXImg").value = Math.round(selected.left);
   document.getElementById("propYImg").value = Math.round(selected.top);
@@ -330,7 +370,7 @@ function updateImageSize(e) {
   
   if (selected.type === "circle") {
     const radius = Math.min(width, height) / 2;
-    selected.set({ radius: radius });
+    selected.set({ radius: radius, scaleX: 1, scaleY: 1 });
   } else {
     selected.set({
       width: width,
@@ -348,12 +388,14 @@ function setShape(shape) {
   if (!selected || selected.fieldData.type !== "image") return;
   
   const oldObj = selected;
+  const oldBox = getImageBox(oldObj);
+  // Switching to a circle keeps the smaller side, so the new shape fits inside the old box
   const config = {
     name: oldObj.fieldData.name,
     x: oldObj.left,
     y: oldObj.top,
-    width: oldObj.type === "circle" ? oldObj.radius * 2 : oldObj.width * oldObj.scaleX,
-    height: oldObj.type === "circle" ? oldObj.radius * 2 : oldObj.height * oldObj.scaleY,
+    width: oldBox.width,
+    height: oldBox.height,
     shape: shape,
   };
   
@@ -462,13 +504,9 @@ function duplicateField() {
     config.align = selected.fieldData.align;
     createTextField(config);
   } else {
-    if (selected.type === "circle") {
-      config.width = selected.radius * 2;
-      config.height = selected.radius * 2;
-    } else {
-      config.width = selected.width * selected.scaleX;
-      config.height = selected.height * selected.scaleY;
-    }
+    const box = getImageBox(selected);
+    config.width = box.width;
+    config.height = box.height;
     config.shape = selected.fieldData.shape;
     createImageField(config);
   }
@@ -610,19 +648,12 @@ function saveTemplate() {
         align: obj.fieldData.align || obj.textAlign || "left",
       };
     } else {
-      let width, height;
-      if (obj.type === "circle") {
-        width = Math.round(obj.radius * 2);
-        height = Math.round(obj.radius * 2);
-      } else {
-        width = Math.round(obj.width * obj.scaleX);
-        height = Math.round(obj.height * obj.scaleY);
-      }
-      
+      const box = getImageBox(obj);
+
       return {
         ...baseData,
-        width: width,
-        height: height,
+        width: box.width,
+        height: box.height,
         shape: obj.fieldData.shape || "rect",
       };
     }

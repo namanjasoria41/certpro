@@ -87,22 +87,10 @@
 
         .preview-box {
             width: 150px;
-            height: 150px;
+            /* same proportions as the box on the poster, so the preview is honest */
+            aspect-ratio: {{ aspect if aspect else 1 }};
             margin: 0 auto;
-
-            border-radius: {
-                % if shape=="circle" %
-            }
-
-            50% {
-                % else %
-            }
-
-            12px {
-                % endif %
-            }
-
-            ;
+            border-radius: {% if shape == "circle" %}50%{% else %}12px{% endif %};
             overflow: hidden;
             border: 3px solid #00ffd5;
             box-shadow: 0 8px 25px rgba(0, 255, 213, 0.3);
@@ -235,7 +223,6 @@
 
             .preview-box {
                 width: 120px;
-                height: 120px;
             }
         }
     </style>
@@ -297,6 +284,8 @@
         const TEMPLATE_ID = {{ template.id }};
         const FIELD = "{{ field }}";
         const SHAPE = "{{ shape }}";
+        // Width / height of the photo box on the poster (null = free crop)
+        const ASPECT = {{ aspect | tojson }};
 
         const image = document.getElementById("cropImage");
         const preview = document.getElementById("preview");
@@ -315,7 +304,7 @@
             viewMode: 1,
             dragMode: 'move',
             autoCropArea: 1,
-            aspectRatio: SHAPE === "circle" ? 1 : NaN,
+            aspectRatio: SHAPE === "circle" ? 1 : (ASPECT || NaN),
             responsive: true,
             restore: false,
             guides: true,
@@ -325,9 +314,9 @@
             cropBoxResizable: true,
             toggleDragModeOnDblclick: false,
             crop(event) {
+                // width only: the height follows the locked crop proportions (no squashed preview)
                 const canvas = cropper.getCroppedCanvas({
                     width: 300,
-                    height: 300,
                     imageSmoothingEnabled: true,
                     imageSmoothingQuality: 'high'
                 });
@@ -339,6 +328,9 @@
 
         function saveCrop() {
             let canvas = cropper.getCroppedCanvas({
+                // keep the upload small enough (10MB limit) but still sharp for print
+                maxWidth: 2000,
+                maxHeight: 2000,
                 imageSmoothingEnabled: true,
                 imageSmoothingQuality: "high",
                 fillColor: '#fff'

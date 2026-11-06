@@ -1,724 +1,272 @@
 {% extends "base.html" %}
-{% block title %}Create {{ template.name }}{% endblock %}
+
+{% block title %}{{ template.name }}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&family=Rajdhani:wght@400;700&family=Hind:wght@400;700&family=Mukta:wght@400;700&family=Kalam:wght@400;700&family=Bebas+Neue&family=Anton&family=Pacifico&family=Lobster&family=Great+Vibes&family=Yatra+One&family=Rozha+One&display=swap" rel="stylesheet">
 <style>
-  .fill-container {
-    min-height: calc(100vh - 120px);
-    background: linear-gradient(135deg, #0f0626, #1b0f3a, #0b1b2e);
-    padding: 30px 0;
-  }
-
-  .fill-wrapper {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 0 20px;
-  }
-
-  .fill-header {
-    text-align: center;
-    margin-bottom: 30px;
-  }
-
-  .fill-header h2 {
-    font-size: 32px;
-    font-weight: 800;
-    background: linear-gradient(135deg, #6f5cff, #00ffd5);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    margin-bottom: 8px;
-  }
-
-  .fill-header p {
-    color: #a8a8c7;
-    font-size: 15px;
-  }
-
-  .fill-main {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 30px;
-    align-items: start;
-  }
-
-  /* LEFT SIDE - FORM */
-  .form-section {
-    background: rgba(10, 5, 30, 0.6);
-    backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 20px;
-    padding: 30px;
-  }
-
-  .progress-bar-container {
-    margin-bottom: 25px;
-  }
-
-  .progress-label {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 8px;
-    font-size: 13px;
-    color: #a8a8c7;
-  }
-
-  .progress-bar-custom {
-    height: 8px;
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
-    overflow: hidden;
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #6f5cff, #00ffd5);
-    border-radius: 10px;
-    transition: width 0.3s ease;
-    width: 0%;
-  }
-
-  .field-card {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
-    padding: 20px;
-    margin-bottom: 20px;
-    transition: all 0.2s ease;
-  }
-
-  .field-card:hover {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.15);
-  }
-
-  .field-card.completed {
-    border-color: rgba(0, 255, 213, 0.3);
-    background: rgba(0, 255, 213, 0.05);
-  }
-
-  .field-label {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 12px;
-    font-weight: 600;
-    color: #eaeaf0;
-    font-size: 14px;
-    text-transform: capitalize;
-  }
-
-  .field-label i {
-    color: #00ffd5;
-    font-size: 18px;
-  }
-
-  .field-input {
-    width: 100%;
-    padding: 12px 16px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 10px;
-    color: #eaeaf0;
-    font-size: 15px;
-    transition: all 0.2s ease;
-  }
-
-  .field-input:focus {
-    outline: none;
-    background: rgba(255, 255, 255, 0.08);
-    border-color: #6f5cff;
-    box-shadow: 0 0 0 3px rgba(111, 92, 255, 0.1);
-  }
-
-  .field-input::placeholder {
-    color: #6b6b8a;
-  }
-
-  /* IMAGE UPLOAD */
-  .image-upload-area {
-    border: 2px dashed rgba(255, 255, 255, 0.2);
-    border-radius: 12px;
-    padding: 30px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    background: rgba(255, 255, 255, 0.02);
-  }
-
-  .image-upload-area:hover {
-    border-color: #6f5cff;
-    background: rgba(111, 92, 255, 0.05);
-  }
-
-  .image-upload-area i {
-    font-size: 40px;
-    color: #6f5cff;
-    margin-bottom: 12px;
-  }
-
-  .image-upload-area p {
-    margin: 0;
-    color: #a8a8c7;
-    font-size: 14px;
-  }
-
-  .image-preview-container {
-    position: relative;
-    text-align: center;
-  }
-
-  .image-preview {
-    max-width: 100%;
-    max-height: 200px;
-    border-radius: 12px;
-    margin-bottom: 12px;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-  }
-
-  .image-actions {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-  }
-
-  .btn-image-action {
-    padding: 8px 16px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 8px;
-    color: #eaeaf0;
-    font-size: 13px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .btn-image-action:hover {
-    background: rgba(111, 92, 255, 0.2);
-    border-color: #6f5cff;
-  }
-
-  /* SUBMIT BUTTON */
-  .btn-generate {
-    width: 100%;
-    padding: 16px;
-    background: linear-gradient(135deg, #6f5cff, #00ffd5);
-    border: none;
-    border-radius: 12px;
-    color: #000;
-    font-weight: 700;
-    font-size: 16px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 8px 25px rgba(111, 92, 255, 0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-  }
-
-  .btn-generate:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 35px rgba(111, 92, 255, 0.6);
-  }
-
-  .btn-generate:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  /* RIGHT SIDE - PREVIEW */
-  .preview-section {
-    position: sticky;
-    top: 80px;
-    background: rgba(10, 5, 30, 0.6);
-    backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 20px;
-    padding: 30px;
-  }
-
-  .preview-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 20px;
-    padding-bottom: 15px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  }
-
-  .preview-header i {
-    color: #00ffd5;
-    font-size: 20px;
-  }
-
-  .preview-header h5 {
-    margin: 0;
-    font-weight: 700;
-    color: #eaeaf0;
-    font-size: 16px;
-  }
-
-  .preview-canvas-wrapper {
-    background: #0b1020;
-    border-radius: 12px;
-    padding: 20px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 400px;
-  }
-
-  .preview-placeholder {
-    text-align: center;
-    color: #6b6b8a;
-  }
-
-  .preview-placeholder i {
-    font-size: 60px;
-    margin-bottom: 15px;
-    opacity: 0.3;
-  }
-
-  .preview-placeholder p {
-    margin: 0;
-    font-size: 14px;
-  }
-
-  #previewCanvas {
-    max-width: 100%;
-    height: auto;
-    border-radius: 8px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  }
-
-  /* RESPONSIVE */
-  @media (max-width: 992px) {
-    .fill-main {
-      grid-template-columns: 1fr;
-    }
-
-    .preview-section {
-      position: relative;
-      top: 0;
-    }
-  }
-
-  @media (max-width: 576px) {
-    .fill-wrapper {
-      padding: 0 15px;
-    }
-
-    .form-section,
-    .preview-section {
-      padding: 20px;
-    }
-  }
+    #pv { width: 100%; height: auto; border-radius: 10px; background: #111; display: block; }
+    .fgroup label.t { font-size: 13px; color: #bbb; margin: 10px 0 4px; display: block; }
+    .pbtns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .pbtns .btn { height: 38px; margin: 0; font-size: 12px; letter-spacing: 0; padding: 0 10px; }
+    .thumb { height: 70px; border-radius: 8px; margin-top: 8px; background: conic-gradient(#555 25%, #777 0 50%, #555 0 75%, #777 0) 0 0/14px 14px; }
+    #cropModal, #busy { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.92); z-index: 2000;
+        flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 10px; text-align: center; }
+    #cc { touch-action: none; max-width: 100%; border-radius: 6px; }
+    .bg-chk { background: conic-gradient(#555 25%, #777 0 50%, #555 0 75%, #777 0) 0 0/16px 16px; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="fill-container">
-  <div class="fill-wrapper">
-
-    <div class="fill-header">
-      <h2>{{ template.name }}</h2>
-      <p>Fill in the details below to create your certificate</p>
+<div class="container mt-3">
+  <h2 class="mb-3">{{ template.name }}</h2>
+  <div class="row">
+    <div class="col-lg-7 mb-3">
+      <div class="card"><div class="card-body p-2">
+        <canvas id="pv"></canvas>
+        <small class="text-muted d-block mt-2">Ye sirf preview hai. Asli poster download par server par banta hai.</small>
+      </div></div>
     </div>
 
-    <div class="fill-main">
+    <div class="col-lg-5 mb-3">
+      <div class="card"><div class="card-body">
+        <p class="mb-2">
+          <strong>Price:</strong> ₹ {{ "%.2f"|format(template.price or 0) }}<br>
+          <strong>Your Wallet:</strong> ₹ <span id="bal">{{ "%.2f"|format(current_user.wallet_balance or 0) }}</span>
+        </p>
+        {% if (current_user.wallet_balance or 0) < (template.price or 0) %}
+        <div class="alert alert-warning">Wallet balance kam hai. <a href="{{ url_for('wallet') }}">Paise add karo</a>.</div>
+        {% endif %}
 
-      <!-- LEFT: FORM -->
-      <div class="form-section">
+        <div id="form" class="fgroup"></div>
 
-        <!-- Progress Bar -->
-        <div class="progress-bar-container">
-          <div class="progress-label">
-            <span>Progress</span>
-            <span id="progressText">0%</span>
-          </div>
-          <div class="progress-bar-custom">
-            <div class="progress-fill" id="progressFill"></div>
-          </div>
-        </div>
-
-        <form method="POST" id="fillForm" enctype="multipart/form-data">
-
-          {% for f in fields %}
-
-          {% if f.field_type == "text" %}
-          <div class="field-card" data-field-type="text">
-            <label class="field-label">
-              <i class="bi bi-fonts"></i>
-              {{ f.field_name|replace('_', ' ')|title }}
-            </label>
-            <input type="text" class="field-input" name="{{ f.field_name }}"
-              placeholder="Enter {{ f.field_name|replace('_', ' ') }}" data-field="{{ f.field_name }}" required>
-          </div>
-          {% endif %}
-
-          {% if f.field_type == "image" %}
-          <div class="field-card" data-field-type="image">
-            <label class="field-label">
-              <i class="bi bi-image"></i>
-              {{ f.field_name|replace('_', ' ')|title }}
-            </label>
-
-            <input type="file" accept="image/*" id="file_{{ f.field_name }}" name="{{ f.field_name }}"
-              style="display: none;" onchange="handleImagePick(event, '{{ f.field_name }}')">
-
-            <div id="upload_{{ f.field_name }}" class="image-upload-area"
-              onclick="document.getElementById('file_{{ f.field_name }}').click()">
-              <i class="bi bi-cloud-upload"></i>
-              <p>Click to upload image</p>
-            </div>
-
-            <div id="preview_{{ f.field_name }}" class="image-preview-container" style="display: none;">
-              <img class="image-preview" id="img_{{ f.field_name }}">
-              <div class="image-actions">
-                <button type="button" class="btn-image-action"
-                  onclick="document.getElementById('file_{{ f.field_name }}').click()">
-                  <i class="bi bi-pencil"></i> Change
-                </button>
-                <button type="button" class="btn-image-action" onclick="removeImage('{{ f.field_name }}')">
-                  <i class="bi bi-trash"></i> Remove
-                </button>
-              </div>
-            </div>
-          </div>
-          {% endif %}
-
-          {% endfor %}
-
-          <button type="submit" class="btn-generate" id="submitBtn">
-            <i class="bi bi-stars"></i>
-            Generate Certificate
-          </button>
-
-        </form>
-      </div>
-
-      <!-- RIGHT: PREVIEW -->
-      <div class="preview-section">
-        <div class="preview-header">
-          <i class="bi bi-eye"></i>
-          <h5>Live Preview</h5>
-        </div>
-
-        <div class="preview-canvas-wrapper">
-          <div class="preview-placeholder" id="previewPlaceholder">
-            <i class="bi bi-file-earmark-text"></i>
-            <p>Start filling the form to see preview</p>
-          </div>
-          <canvas id="previewCanvas" style="display: none;"></canvas>
-        </div>
-      </div>
-
+        <button id="mk" class="btn btn-primary w-100 mt-3" {% if (current_user.wallet_balance or 0) < (template.price or 0) %}disabled{% endif %}>
+          Poster Banao &amp; Download
+        </button>
+        <div id="msg" class="mt-2 small"></div>
+        <a id="viewLink" class="btn btn-outline-light w-100 mt-2" style="display:none" target="_blank">Poster dekho</a>
+      </div></div>
     </div>
   </div>
 </div>
 
+<div id="cropModal">
+  <div>Crop karo: box ko kheencho, kone pakad kar chhota/bada karo</div>
+  <canvas id="cc"></canvas>
+  <label><input type="checkbox" id="lock" checked> Poster ke box ke ratio mein lock (freestyle ke liye hata do)</label>
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary" id="cdA" onclick="cropDone(false)">Done</button>
+    <button class="btn btn-primary" id="cdB" onclick="cropDone(true)">Done + Background Hatao</button>
+    <button class="btn btn-outline-light" onclick="cropCancel()">Cancel</button>
+  </div>
+</div>
+<div id="busy"><div><h4 id="busyT">Background hat raha hai...</h4><div id="busyP"></div>
+  <small class="text-muted">Pehli baar AI model download hota hai, 30-60 second lag sakte hain.</small></div></div>
+
+<script id="fill-data" type="application/json">{{ {'template_id': template.id, 'img': url_for('static', filename='templates/' + template.image_path), 'fields': fields_json}|tojson }}</script>
+{% endblock %}
+
+{% block extra_js %}
 <script>
-  const TEMPLATE_ID = {{ template.id }};
-  const TEMPLATE_IMAGE_URL = "{{ url_for('serve_template_image', template_id=template.id) }}";
-  const FIELDS = {{ fields_data | tojson }};
+const D = JSON.parse(document.getElementById('fill-data').textContent);
+const $ = id => document.getElementById(id);
+const pv = $('pv'), g = pv.getContext('2d');
+const vals = {}, photos = {}, origs = {}, bgDone = {};
+let bg = null;
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+const loadImg = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+const readF = f => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(f); });
+const fstr = (f, px) => `${f.is_bold ? 'bold ' : ''}${px}px "${f.font_family}", Arial, sans-serif`;
 
-  let canvas, ctx;
-  let templateImage = new Image();
-  let uploadedImages = {};
+/* ---------- form ---------- */
+$('form').innerHTML = D.fields.map(f => f.field_type === 'text'
+  ? `<label class="t">${esc(f.field_name)}</label><input type="text" class="form-control" data-id="${f.id}" placeholder="${esc(f.field_name)}">`
+  : `<label class="t">${esc(f.field_name)} (photo)</label>
+     <input type="file" class="form-control" accept="image/*" data-pid="${f.id}" style="padding-top:11px">
+     <div id="pw${f.id}"></div>`).join('') || '<p class="text-muted">Is poster mein abhi koi field nahi hai.</p>';
 
-  // Initialize
-  window.addEventListener('DOMContentLoaded', () => {
-    canvas = document.getElementById('previewCanvas');
-    ctx = canvas.getContext('2d');
+document.querySelectorAll('input[data-id]').forEach(el => el.addEventListener('input', () => { vals[el.dataset.id] = el.value; draw(); }));
+document.querySelectorAll('input[data-pid]').forEach(el => el.addEventListener('change', async () => {
+  const f = el.files[0]; if (!f) return;
+  const id = +el.dataset.pid;
+  try { origs[id] = await loadImg(await readF(f)); }
+  catch (e) { alert('Ye photo khul nahi payi. JPG ya PNG try karo.'); return; }
+  openCrop(id);
+  el.value = '';
+}));
 
-    // Load template image
-    templateImage.crossOrigin = "anonymous";
-    templateImage.onload = () => {
-      canvas.width = templateImage.width;
-      canvas.height = templateImage.height;
-      updatePreview();
-    };
-    templateImage.src = TEMPLATE_IMAGE_URL;
+function renderPhotoUi(id) {
+  const w = $('pw' + id), c = photos[id];
+  if (!c) { w.innerHTML = ''; return; }
+  const mode = fieldById(id).remove_bg;
+  const bgBtn = (mode === 'off' || (mode === 'always' && bgDone[id])) ? ''
+    : `<button type="button" class="btn btn-outline-light" onclick="removeBgFor(${id})">${mode === 'always' ? 'Background dobara hatao' : 'Background Hatao'}</button>`;
+  const note = mode === 'always' ? `<small class="${bgDone[id] ? 'text-success' : 'text-warning'} d-block mt-1">${bgDone[id] ? 'Background hat gaya' : 'Background abhi nahi hata'}</small>` : '';
+  w.innerHTML = `<img class="thumb" src="${c.toDataURL('image/png')}">${note}
+   <div class="pbtns">
+    <button type="button" class="btn btn-outline-light" onclick="openCrop(${id})">Crop dobara</button>
+    ${bgBtn}
+    <button type="button" class="btn btn-danger" onclick="delPhoto(${id})">Hata do</button>
+   </div>`;
+}
+function delPhoto(id) { delete photos[id]; delete origs[id]; delete bgDone[id]; renderPhotoUi(id); draw(); }
 
-    // Add input listeners
-    document.querySelectorAll('.field-input').forEach(input => {
-      input.addEventListener('input', () => {
-        updateProgress();
-        updatePreview();
-      });
-    });
-
-    updateProgress();
-  });
-
-  // Loaded <img> objects per image field, so the preview draws them in order (no flicker)
-  const imageCache = {};
-
-  function getCachedImage(fieldName, dataUrl) {
-    const cached = imageCache[fieldName];
-    if (cached && cached.dataUrl === dataUrl) {
-      return cached.img.complete && cached.img.naturalWidth ? cached.img : null;
-    }
-    const img = new Image();
-    img.onload = () => updatePreview();
-    img.src = dataUrl;
-    imageCache[fieldName] = { dataUrl, img };
-    return null;
-  }
-
-  // Draw img so it fills the box x,y,w,h without stretching; the overflow is cropped equally on both sides
-  function drawCover(img, x, y, w, h) {
-    const imgRatio = img.width / img.height;
-    const boxRatio = w / h;
-    let sw, sh, sx, sy;
-    if (imgRatio > boxRatio) {
-      sh = img.height;
-      sw = sh * boxRatio;
-      sx = (img.width - sw) / 2;
-      sy = 0;
-    } else {
-      sw = img.width;
-      sh = sw / boxRatio;
-      sx = 0;
-      sy = (img.height - sh) / 2;
-    }
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
-  }
-
-  function updateProgress() {
-    const totalFields = FIELDS.length;
-    let completedFields = 0;
-
-    // Check text fields
-    document.querySelectorAll('.field-input').forEach(input => {
-      if (input.value.trim()) {
-        completedFields++;
-        input.closest('.field-card').classList.add('completed');
+/* ---------- preview ---------- */
+function rr(x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r); }
+function draw() {
+  if (!bg) return;
+  g.clearRect(0, 0, pv.width, pv.height);
+  g.drawImage(bg, 0, 0, pv.width, pv.height);
+  D.fields.forEach(f => {
+    const x = f.x_position, y = f.y_position, w = f.width, h = f.height;
+    if (f.field_type === 'image') {
+      const R = f.shape === 'circle' ? Math.min(w, h) / 2 : f.shape === 'round' ? Math.min(w, h) * 0.08 : 0;
+      const im = photos[f.id];
+      if (im) {
+        g.save(); rr(x, y, w, h, R); g.clip();
+        const s = Math.max(w / im.width, h / im.height), iw = im.width * s, ih = im.height * s;
+        g.drawImage(im, x + (w - iw) / 2, y + (h - ih) / 2, iw, ih); g.restore();
       } else {
-        input.closest('.field-card').classList.remove('completed');
+        g.save(); g.setLineDash([12, 8]); g.lineWidth = Math.max(2, pv.width / 400); g.strokeStyle = 'rgba(255,255,255,.7)';
+        rr(x, y, w, h, R); g.stroke(); g.restore();
       }
-    });
-
-    // Check image fields
-    Object.keys(uploadedImages).forEach(() => {
-      completedFields++;
-    });
-
-    const percentage = totalFields > 0 ? Math.round((completedFields / totalFields) * 100) : 0;
-    document.getElementById('progressFill').style.width = percentage + '%';
-    document.getElementById('progressText').textContent = percentage + '%';
-  }
-
-  function updatePreview() {
-    if (!templateImage.complete) return;
-
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Draw template background
-    ctx.drawImage(templateImage, 0, 0);
-
-    // Draw fields
-    FIELDS.forEach(field => {
-      if (field.field_type === 'text') {
-        // Draw text fields
-        const input = document.querySelector(`input[data-field="${field.field_name}"]`);
-        if (input && input.value) {
-          const text = input.value;
-          const x = field.x || 0;
-          const y = field.y || 0;
-          const fontSize = field.font_size || 32;
-          const color = field.color || '#000000';
-          const align = field.align || 'left';
-
-          ctx.font = `${fontSize}px Arial`;
-          ctx.fillStyle = color;
-          ctx.textAlign = align;
-          ctx.fillText(text, x, y + fontSize);
-        }
-      } else if (field.field_type === 'image') {
-        // Draw image fields (same fit rules as the server: fill the box, keep proportions, centered)
-        const imageData = uploadedImages[field.field_name];
-        if (imageData) {
-          const img = getCachedImage(field.field_name, imageData);
-          if (!img) return; // still loading; updatePreview() runs again once it is ready
-
-          const x = field.x || 0;
-          const y = field.y || 0;
-          const shape = field.shape || 'rect';
-          let width = field.width || img.width;
-          let height = field.height || img.height;
-
-          ctx.save();
-          if (shape === 'circle') {
-            const d = Math.min(width, height);
-            width = height = d;
-            ctx.beginPath();
-            ctx.arc(x + d / 2, y + d / 2, d / 2, 0, Math.PI * 2);
-            ctx.closePath();
-            ctx.clip();
-          }
-          drawCover(img, x, y, width, height);
-          ctx.restore();
-        }
-      }
-    });
-
-    // Show canvas, hide placeholder
-    document.getElementById('previewPlaceholder').style.display = 'none';
-    canvas.style.display = 'block';
-  }
-
-  function handleImagePick(event, fieldName) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    // Save all current form data to sessionStorage before redirecting
-    const formData = {};
-    document.querySelectorAll('.field-input').forEach(input => {
-      const field = input.getAttribute('data-field');
-      if (field && input.value) {
-        formData[field] = input.value;
-      }
-    });
-    sessionStorage.setItem('form_data', JSON.stringify(formData));
-
-    // Save all currently uploaded images
-    sessionStorage.setItem('uploaded_images', JSON.stringify(uploadedImages));
-
-    const reader = new FileReader();
-    reader.onload = function (e) {
-      sessionStorage.setItem("crop_image_data", e.target.result);
-      sessionStorage.setItem("crop_field_name", fieldName);
-      window.location.href = `/template/${TEMPLATE_ID}/crop/${fieldName}`;
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function removeImage(fieldName) {
-    delete uploadedImages[fieldName];
-    document.getElementById(`upload_${fieldName}`).style.display = 'block';
-    document.getElementById(`preview_${fieldName}`).style.display = 'none';
-    document.getElementById(`file_${fieldName}`).value = '';
-
-    const card = document.querySelector(`#preview_${fieldName}`).closest('.field-card');
-    card.classList.remove('completed');
-
-    updateProgress();
-    updatePreview();
-  }
-
-  // Check for returned from crop and restore form data
-  window.addEventListener('DOMContentLoaded', () => {
-    // Restore previously uploaded images first
-    const savedImages = sessionStorage.getItem('uploaded_images');
-    if (savedImages) {
-      try {
-        const images = JSON.parse(savedImages);
-        Object.keys(images).forEach(fieldName => {
-          uploadedImages[fieldName] = images[fieldName];
-
-          // Display the image preview
-          const uploadArea = document.getElementById(`upload_${fieldName}`);
-          const previewArea = document.getElementById(`preview_${fieldName}`);
-          const imgElement = document.getElementById(`img_${fieldName}`);
-
-          if (uploadArea && previewArea && imgElement) {
-            uploadArea.style.display = 'none';
-            previewArea.style.display = 'block';
-            imgElement.src = images[fieldName];
-
-            const card = previewArea.closest('.field-card');
-            card.classList.add('completed');
-          }
-
-          // Create hidden input for form submission
-          let hiddenInput = document.querySelector(`input[name="${fieldName}"][type="hidden"]`);
-          if (!hiddenInput) {
-            hiddenInput = document.createElement('input');
-            hiddenInput.type = 'hidden';
-            hiddenInput.name = fieldName;
-            document.getElementById('fillForm').appendChild(hiddenInput);
-          }
-          hiddenInput.value = images[fieldName];
-        });
-      } catch (e) {
-        console.error('Error restoring uploaded images:', e);
-      }
-    }
-
-    // Restore saved form data
-    const savedFormData = sessionStorage.getItem('form_data');
-    if (savedFormData) {
-      try {
-        const formData = JSON.parse(savedFormData);
-        Object.keys(formData).forEach(field => {
-          const input = document.querySelector(`input[data-field="${field}"]`);
-          if (input) {
-            input.value = formData[field];
-          }
-        });
-        // Clear after restoring
-        sessionStorage.removeItem('form_data');
-        updatePreview();
-      } catch (e) {
-        console.error('Error restoring form data:', e);
-      }
-    }
-
-    // Check if returning from crop page
-    const fieldName = sessionStorage.getItem('crop_field_name');
-    if (fieldName) {
-      // Fetch the cropped image from backend
-      fetch(`/template/${TEMPLATE_ID}/get_cropped_image/${fieldName}`)
-        .then(response => response.json())
-        .then(data => {
-          if (data.status === 'success') {
-            // Store image data
-            uploadedImages[fieldName] = data.image_data;
-
-            // Display image preview
-            const uploadArea = document.getElementById(`upload_${fieldName}`);
-            const previewArea = document.getElementById(`preview_${fieldName}`);
-            const imgElement = document.getElementById(`img_${fieldName}`);
-
-            if (uploadArea && previewArea && imgElement) {
-              uploadArea.style.display = 'none';
-              previewArea.style.display = 'block';
-              imgElement.src = data.image_data;
-
-              const card = previewArea.closest('.field-card');
-              card.classList.add('completed');
-            }
-
-            // Create hidden input to store image data for form submission
-            let hiddenInput = document.querySelector(`input[name="${fieldName}"][type="hidden"]`);
-            if (!hiddenInput) {
-              hiddenInput = document.createElement('input');
-              hiddenInput.type = 'hidden';
-              hiddenInput.name = fieldName;
-              document.getElementById('fillForm').appendChild(hiddenInput);
-            }
-            hiddenInput.value = data.image_data;
-
-            // Save updated images to sessionStorage
-            sessionStorage.setItem('uploaded_images', JSON.stringify(uploadedImages));
-
-            updateProgress();
-            updatePreview();
-          }
-        })
-        .catch(error => {
-          console.error('Error fetching cropped image:', error);
-        });
-
-      sessionStorage.removeItem('crop_field_name');
+    } else {
+      let t = (vals[f.id] || '').trim(); if (!t) return;
+      if (f.is_upper) t = t.toUpperCase();
+      let s = f.font_size || Math.round(h * 0.85);
+      g.font = fstr(f, s);
+      while (s > 8 && g.measureText(t).width > w) { s -= 2; g.font = fstr(f, s); }
+      g.fillStyle = f.font_color; g.textBaseline = 'middle'; g.textAlign = f.align;
+      g.fillText(t, f.align === 'center' ? x + w / 2 : f.align === 'right' ? x + w : x, y + h / 2);
     }
   });
+}
+(async () => {
+  bg = await loadImg(D.img);
+  pv.width = bg.naturalWidth; pv.height = bg.naturalHeight;
+  try { await Promise.all(D.fields.filter(f => f.field_type === 'text').map(f => document.fonts.load(fstr(f, 20), 'Aa अआ'))); } catch (e) {}
+  draw();
+  if (document.fonts) document.fonts.ready.then(draw);
+})();
+
+/* ---------- crop ---------- */
+const cc = $('cc'), cg = cc.getContext('2d');
+let cId = null, cImg = null, cs = 1, cr = null, cmode = null, cst = null, cratio = 1;
+function fieldById(id) { return D.fields.find(f => f.id === id); }
+function openCrop(id) {
+  const im = origs[id]; if (!im) return;
+  const f = fieldById(id);
+  cId = id; cImg = im; cratio = f.width / f.height;
+  $('cdB').style.display = f.remove_bg === 'optional' ? '' : 'none';
+  $('cdA').textContent = f.remove_bg === 'always' ? 'Done (background apne aap hatega)' : 'Done';
+  cs = Math.min(Math.min(innerWidth * 0.92, 900) / im.width, (innerHeight * 0.58) / im.height);
+  cc.width = Math.round(im.width * cs); cc.height = Math.round(im.height * cs);
+  let w = Math.min(cc.width, cc.height * cratio) * 0.9;
+  cr = { x: (cc.width - w) / 2, y: (cc.height - w / cratio) / 2, w, h: w / cratio };
+  $('cropModal').style.display = 'flex'; drawCrop();
+}
+function drawCrop() {
+  cg.clearRect(0, 0, cc.width, cc.height);
+  cg.drawImage(cImg, 0, 0, cc.width, cc.height);
+  cg.fillStyle = 'rgba(0,0,0,.6)';
+  cg.fillRect(0, 0, cc.width, cr.y); cg.fillRect(0, cr.y + cr.h, cc.width, cc.height);
+  cg.fillRect(0, cr.y, cr.x, cr.h); cg.fillRect(cr.x + cr.w, cr.y, cc.width, cr.h);
+  cg.strokeStyle = '#f5c542'; cg.lineWidth = 2; cg.strokeRect(cr.x, cr.y, cr.w, cr.h);
+  cg.fillStyle = '#f5c542'; corners().forEach(p => cg.fillRect(p[0] - 9, p[1] - 9, 18, 18));
+}
+const corners = () => [[cr.x, cr.y], [cr.x + cr.w, cr.y], [cr.x, cr.y + cr.h], [cr.x + cr.w, cr.y + cr.h]];
+function cpt(e) { const r = cc.getBoundingClientRect(); return [(e.clientX - r.left) * cc.width / r.width, (e.clientY - r.top) * cc.height / r.height]; }
+cc.addEventListener('pointerdown', e => {
+  cc.setPointerCapture(e.pointerId);
+  const [px, py] = cpt(e); cmode = null;
+  corners().forEach((c, i) => { if (Math.abs(px - c[0]) < 26 && Math.abs(py - c[1]) < 26) cmode = i; });
+  if (cmode !== null) { const o = corners()[3 - cmode]; cst = { ax: o[0], ay: o[1] }; }
+  else if (px > cr.x && px < cr.x + cr.w && py > cr.y && py < cr.y + cr.h) { cmode = 'move'; cst = { dx: px - cr.x, dy: py - cr.y }; }
+});
+cc.addEventListener('pointermove', e => {
+  if (cmode === null) return;
+  let [px, py] = cpt(e);
+  px = Math.max(0, Math.min(cc.width, px)); py = Math.max(0, Math.min(cc.height, py));
+  if (cmode === 'move') {
+    cr.x = Math.max(0, Math.min(cc.width - cr.w, px - cst.dx)); cr.y = Math.max(0, Math.min(cc.height - cr.h, py - cst.dy));
+  } else {
+    let w = Math.abs(px - cst.ax), h = Math.abs(py - cst.ay);
+    if ($('lock').checked) {
+      h = w / cratio;
+      const ny = py < cst.ay ? cst.ay - h : cst.ay + h;
+      if (ny < 0 || ny > cc.height) { h = py < cst.ay ? cst.ay : cc.height - cst.ay; w = h * cratio; }
+    }
+    w = Math.max(30, w); h = Math.max(30, h);
+    cr.x = px < cst.ax ? cst.ax - w : cst.ax; cr.y = py < cst.ay ? cst.ay - h : cst.ay; cr.w = w; cr.h = h;
+  }
+  drawCrop();
+});
+cc.addEventListener('pointerup', () => cmode = null);
+function cropCancel() { $('cropModal').style.display = 'none'; if (!photos[cId]) delete origs[cId]; }
+async function cropDone(removeBg) {
+  if (fieldById(cId).remove_bg === 'always') removeBg = true;
+  const sw = cr.w / cs, sh = cr.h / cs, k = Math.min(1, 1600 / Math.max(sw, sh));
+  const o = document.createElement('canvas'); o.width = Math.round(sw * k); o.height = Math.round(sh * k);
+  o.getContext('2d').drawImage(cImg, cr.x / cs, cr.y / cs, sw, sh, 0, 0, o.width, o.height);
+  $('cropModal').style.display = 'none';
+  photos[cId] = o; bgDone[cId] = false; renderPhotoUi(cId); draw();
+  if (removeBg) await removeBgFor(cId);
+}
+
+/* ---------- auto background remove (AI, browser mein) ---------- */
+const BG_SRC = [
+  ['https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.0.0/dist/index.mjs', { publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.0.0/dist/' }],
+  ['https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/+esm', {}]
+];
+let bgLib = null;
+async function removeBgFor(id) {
+  const c = photos[id]; if (!c) return;
+  $('busy').style.display = 'flex'; $('busyP').textContent = '';
+  const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+  let err = '';
+  for (const [u, cfg] of BG_SRC) {
+    try {
+      if (!bgLib || bgLib.u !== u) { $('busyP').textContent = 'Library load ho rahi hai...'; bgLib = { u, m: await import(u) }; }
+      const rm = bgLib.m.removeBackground || bgLib.m.default;
+      const out = await rm(blob, Object.assign({}, cfg, { progress: (k, a, t) => { $('busyP').textContent = (String(k).includes('fetch') ? 'Model download: ' : 'Process: ') + (t ? Math.round(a / t * 100) + '%' : ''); } }));
+      const im = await loadImg(URL.createObjectURL(out));
+      const o = document.createElement('canvas'); o.width = im.width; o.height = im.height; o.getContext('2d').drawImage(im, 0, 0);
+      photos[id] = o; bgDone[id] = true; $('busy').style.display = 'none'; renderPhotoUi(id); draw(); return;
+    } catch (e) { console.error(u, e); err += (e && e.message || e) + ' | '; bgLib = null; }
+  }
+  $('busy').style.display = 'none'; renderPhotoUi(id);
+  alert('Background nahi hat paya (internet check karo). Photo waisi hi rakhi hai.\n' + err);
+}
+
+/* ---------- generate + download ---------- */
+function setMsg(t, ok) { const m = $('msg'); m.textContent = t; m.style.color = ok === false ? '#ff6b6b' : '#00ffd5'; }
+$('mk').addEventListener('click', async () => {
+  const btn = $('mk');
+  if (D.fields.some(f => f.field_type === 'text' && !(vals[f.id] || '').trim()) &&
+      !confirm('Kuch text khali hai. Phir bhi poster banana hai?')) return;
+  if (D.fields.some(f => f.field_type === 'image' && !photos[f.id]) &&
+      !confirm('Kuch photo nahi lagi hai. Phir bhi poster banana hai?')) return;
+  const pending = D.fields.filter(f => f.field_type === 'image' && f.remove_bg === 'always' && photos[f.id] && !bgDone[f.id]);
+  if (pending.length && !confirm('"' + pending.map(f => f.field_name).join(', ') + '" ka background abhi nahi hata. Phir bhi poster banana hai?')) return;
+  btn.disabled = true; setMsg('Poster ban raha hai...');
+  try {
+    const fd = new FormData();
+    D.fields.forEach(f => { if (f.field_type === 'text') fd.append('f_' + f.id, vals[f.id] || ''); });
+    for (const f of D.fields) {
+      if (f.field_type !== 'image' || !photos[f.id]) continue;
+      const blob = await new Promise(r => photos[f.id].toBlob(r, 'image/png'));
+      fd.append('f_' + f.id, blob, 'photo.png');
+    }
+    const r = await fetch(location.pathname, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'fetch' } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) { setMsg(j.error || 'Poster nahi bana (error ' + r.status + ')', false); btn.disabled = false; return; }
+    $('bal').textContent = Number(j.balance).toFixed(2);
+    const a = document.createElement('a'); a.href = j.download_url; a.download = 'poster.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    const v = $('viewLink'); v.href = j.view_url; v.style.display = 'flex';
+    setMsg('Poster ban gaya aur download ho raha hai.');
+  } catch (e) { setMsg('Error: ' + e.message, false); }
+  btn.disabled = false;
+});
 </script>
 {% endblock %}

@@ -1,229 +1,261 @@
 {% extends "base.html" %}
 
-{% block title %}Builder — {{ template.name }}{% endblock %}
+{% block title %}Builder - {{ template.name }}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/builder.css') }}">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&family=Rajdhani:wght@400;700&family=Hind:wght@400;700&family=Mukta:wght@400;700&family=Kalam:wght@400;700&family=Bebas+Neue&family=Anton&family=Pacifico&family=Lobster&family=Great+Vibes&family=Yatra+One&family=Rozha+One&display=swap" rel="stylesheet">
+<style>
+    #stage { position: relative; display: inline-block; max-width: 100%; user-select: none; touch-action: none; line-height: 0; }
+    #poster { max-width: 100%; height: auto; display: block; border-radius: 6px; }
+    .box { position: absolute; border: 2px dashed; cursor: move; display: flex; align-items: center;
+           overflow: hidden; white-space: nowrap; line-height: 1.1; box-sizing: border-box; }
+    .box.photo { border-color: #00ff88; background: rgba(0,255,136,.28); justify-content: center; color: #003; font: 700 12px sans-serif; }
+    .box.text  { border-color: #ffcc00; background: rgba(255,204,0,.18); }
+    .box.sel   { border-style: solid; border-width: 3px; z-index: 5; box-shadow: 0 0 0 2px rgba(255,255,255,.7); }
+    .hd { position: absolute; right: 0; bottom: 0; width: 18px; height: 18px; background: #fff; border: 2px solid #000; cursor: nwse-resize; }
+    .bb .btn { height: 40px; margin: 0; font-size: 13px; letter-spacing: 0; padding: 0 12px; }
+    .bb .form-control, .bb .form-select { height: 40px; font-size: 14px; }
+    .bb input[type=color].form-control { padding: 2px; }
+    .bb label { font-size: 12px; margin: 8px 0 3px; color: #bbb; display: block; }
+    .bb h5 { font-size: 15px; text-transform: none; text-shadow: none; animation: none; }
+    .fitem { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 8px; border-bottom: 1px solid #333; cursor: pointer; font-size: 14px; }
+    .fitem.on { background: rgba(255,0,222,.15); }
+    .grid4 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    #status { font-size: 13px; min-height: 20px; }
+</style>
 {% endblock %}
 
 {% block content %}
-
-<div class="builder-container">
-
-  <!-- TOP TOOLBAR -->
-  <div class="builder-topbar">
-    <div class="topbar-left">
-      <a href="{{ url_for('admin_templates') }}" class="btn-back">
-        <i class="bi bi-arrow-left"></i> Back
-      </a>
-      <span class="template-name">{{ template.name }}</span>
-    </div>
-
-    <div class="topbar-center">
-      <button class="btn-icon" onclick="undo()" title="Undo (Ctrl+Z)">
-        <i class="bi bi-arrow-counterclockwise"></i>
-      </button>
-      <button class="btn-icon" onclick="redo()" title="Redo (Ctrl+Y)">
-        <i class="bi bi-arrow-clockwise"></i>
-      </button>
-      <div class="divider"></div>
-      <button class="btn-icon" onclick="zoomOut()" title="Zoom Out">
-        <i class="bi bi-zoom-out"></i>
-      </button>
-      <span class="zoom-level" id="zoomLevel">100%</span>
-      <button class="btn-icon" onclick="zoomIn()" title="Zoom In">
-        <i class="bi bi-zoom-in"></i>
-      </button>
-      <button class="btn-icon" onclick="resetZoom()" title="Reset Zoom">
-        <i class="bi bi-aspect-ratio"></i>
-      </button>
-    </div>
-
-    <div class="topbar-right">
-      <button class="btn-save" onclick="saveTemplate()">
-        <i class="bi bi-save"></i> Save Template
-      </button>
-    </div>
-  </div>
-
-  <div class="builder-main">
-
-    <!-- LEFT SIDEBAR - Field List -->
-    <div class="builder-sidebar">
-      <div class="sidebar-header">
-        <h6><i class="bi bi-layers"></i> Fields</h6>
-        <span class="field-count" id="fieldCount">0</span>
-      </div>
-
-      <div class="sidebar-actions">
-        <button class="btn-add" onclick="addText()">
-          <i class="bi bi-fonts"></i> Add Text
-        </button>
-        <button class="btn-add" onclick="addImagePlaceholder()">
-          <i class="bi bi-image"></i> Add Image
-        </button>
-      </div>
-
-      <div class="field-list" id="fieldList">
-        <!-- Fields will be populated here -->
-      </div>
-    </div>
-
-    <!-- CANVAS AREA -->
-    <div class="builder-canvas-wrapper">
-      <div class="canvas-container" id="canvasContainer">
-        <canvas id="builderCanvas"></canvas>
-      </div>
-    </div>
-
-    <!-- RIGHT PROPERTIES PANEL -->
-    <div class="builder-properties">
-      <div class="properties-header">
-        <h6><i class="bi bi-sliders"></i> Properties</h6>
-      </div>
-
-      <div class="properties-content" id="propertiesContent">
-        <div class="no-selection">
-          <i class="bi bi-cursor"></i>
-          <p>Select a field to edit properties</p>
-        </div>
-      </div>
-
-      <!-- Text Field Properties Template -->
-      <div id="textPropertiesTemplate" style="display: none;">
-        <div class="prop-group">
-          <label>Field Name</label>
-          <input type="text" class="prop-input" id="propFieldName" placeholder="e.g., name, title">
-        </div>
-
-        <div class="prop-group">
-          <label>Text Content (Preview)</label>
-          <input type="text" class="prop-input" id="propTextContent" placeholder="Sample text">
-        </div>
-
-        <div class="prop-row">
-          <div class="prop-group">
-            <label>Font Size</label>
-            <input type="number" class="prop-input" id="propFontSize" min="8" max="200" value="32">
+<div class="bb">
+  <h2 class="mb-3">{{ template.name }} - Builder</h2>
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex flex-wrap gap-2 mb-3">
+            <button class="btn btn-primary" onclick="addField('image')">+ Photo Box</button>
+            <button class="btn btn-primary" onclick="addField('text')">+ Text Box</button>
+            <button class="btn btn-outline-light" onclick="dupField()">Duplicate</button>
+            <button class="btn btn-outline-light" onclick="undo()">Undo</button>
+            <button class="btn btn-success" onclick="saveAll()">Save Template</button>
           </div>
-          <div class="prop-group">
-            <label>Color</label>
-            <input type="color" class="prop-input" id="propColor" value="#ffffff">
+          <p class="text-muted small mb-2">Box ko kheench kar jagah do. Neeche-right ke safed kone se size badlo. Arrow keys se 1px, Shift+Arrow se 10px khiskta hai.</p>
+          <div id="stage">
+            <img id="poster" src="{{ url_for('static', filename='templates/' + template.image_path) }}" alt="{{ template.name }}" draggable="false">
           </div>
-        </div>
-
-        <div class="prop-group">
-          <label>Font Family</label>
-          <select class="prop-input" id="propFontFamily">
-            <option value="default">Default</option>
-            <option value="roboto">Roboto</option>
-            <option value="inter">Inter</option>
-            <option value="open_sans">Open Sans</option>
-            <option value="noto_sans">Noto Sans</option>
-            <option value="times">Times</option>
-          </select>
-        </div>
-
-        <div class="prop-group">
-          <label>Text Alignment</label>
-          <div class="btn-group-toggle">
-            <button class="btn-toggle" data-align="left" onclick="setAlignment('left')">
-              <i class="bi bi-text-left"></i>
-            </button>
-            <button class="btn-toggle" data-align="center" onclick="setAlignment('center')">
-              <i class="bi bi-text-center"></i>
-            </button>
-            <button class="btn-toggle" data-align="right" onclick="setAlignment('right')">
-              <i class="bi bi-text-right"></i>
-            </button>
-          </div>
-        </div>
-
-        <div class="prop-row">
-          <div class="prop-group">
-            <label>X Position</label>
-            <input type="number" class="prop-input" id="propX" min="0">
-          </div>
-          <div class="prop-group">
-            <label>Y Position</label>
-            <input type="number" class="prop-input" id="propY" min="0">
-          </div>
-        </div>
-
-        <div class="prop-actions">
-          <button class="btn-action btn-duplicate" onclick="duplicateField()">
-            <i class="bi bi-files"></i> Duplicate
-          </button>
-          <button class="btn-action btn-delete" onclick="deleteField()">
-            <i class="bi bi-trash"></i> Delete
-          </button>
-        </div>
-      </div>
-
-      <!-- Image Field Properties Template -->
-      <div id="imagePropertiesTemplate" style="display: none;">
-        <div class="prop-group">
-          <label>Field Name</label>
-          <input type="text" class="prop-input" id="propFieldNameImg" placeholder="e.g., photo, logo">
-        </div>
-
-        <div class="prop-row">
-          <div class="prop-group">
-            <label>Width</label>
-            <input type="number" class="prop-input" id="propWidth" min="10" value="150">
-          </div>
-          <div class="prop-group">
-            <label>Height</label>
-            <input type="number" class="prop-input" id="propHeight" min="10" value="150">
-          </div>
-        </div>
-
-        <div class="prop-group">
-          <label>Shape</label>
-          <div class="btn-group-toggle">
-            <button class="btn-toggle active" data-shape="rect" onclick="setShape('rect')">
-              <i class="bi bi-square"></i> Rectangle
-            </button>
-            <button class="btn-toggle" data-shape="circle" onclick="setShape('circle')">
-              <i class="bi bi-circle"></i> Circle
-            </button>
-          </div>
-        </div>
-
-        <div class="prop-row">
-          <div class="prop-group">
-            <label>X Position</label>
-            <input type="number" class="prop-input" id="propXImg" min="0">
-          </div>
-          <div class="prop-group">
-            <label>Y Position</label>
-            <input type="number" class="prop-input" id="propYImg" min="0">
-          </div>
-        </div>
-
-        <div class="prop-actions">
-          <button class="btn-action btn-duplicate" onclick="duplicateField()">
-            <i class="bi bi-files"></i> Duplicate
-          </button>
-          <button class="btn-action btn-delete" onclick="deleteField()">
-            <i class="bi bi-trash"></i> Delete
-          </button>
+          <div id="status" class="mt-2"></div>
         </div>
       </div>
     </div>
 
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header"><h5 class="mb-0">Fields</h5></div>
+        <div class="card-body p-0" id="flist"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h5 class="mb-0">Properties</h5></div>
+        <div class="card-body" id="props"><small class="text-muted">Koi box chuno</small></div>
+      </div>
+      <a href="{{ url_for('admin_templates') }}" class="btn btn-secondary w-100">Back to Templates</a>
+      <a href="{{ url_for('fill_template', template_id=template.id) }}" class="btn btn-outline-light w-100" target="_blank">User page dekho</a>
+    </div>
   </div>
 </div>
 
+<script id="builder-data" type="application/json">{{ {'template_id': template.id, 'fields': fields_json, 'fonts': font_names}|tojson }}</script>
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js"></script>
 <script>
-  const TEMPLATE_ID = {{ template.id }};
-  const TEMPLATE_IMAGE = "{{ template_image_url }}";
-  const EXISTING_FIELDS = {{ fields | tojson }};
+const D = JSON.parse(document.getElementById('builder-data').textContent);
+const img = document.getElementById('poster');
+const stage = document.getElementById('stage');
+let F = D.fields.map(norm), sel = -1, hist = [], dirty = false, NW = 0, NH = 0;
+
+function norm(f) {
+  return Object.assign({field_type:'text', field_name:'', x_position:0, y_position:0, width:200, height:60,
+    font_size:0, font_color:'#000000', font_family:'Poppins', align:'left', is_bold:false, is_upper:false, shape:'rect', remove_bg:'optional'}, f);
+}
+function snap() { hist.push(JSON.stringify(F)); if (hist.length > 60) hist.shift(); dirty = true; }
+function undo() { if (!hist.length) return; F = JSON.parse(hist.pop()); if (sel >= F.length) sel = F.length - 1; renderAll(); }
+function setStatus(t, ok) { const s = document.getElementById('status'); s.textContent = t; s.style.color = ok === false ? '#ff6b6b' : '#00ffd5'; }
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+
+function init() { NW = img.naturalWidth; NH = img.naturalHeight; renderAll(); }
+if (img.complete && img.naturalWidth) init(); else img.addEventListener('load', init);
+window.addEventListener('resize', renderStage);
+
+/* ---------- stage ---------- */
+function renderStage() {
+  stage.querySelectorAll('.box').forEach(b => b.remove());
+  if (!NW) return;
+  const k = img.clientWidth / NW;
+  F.forEach((f, i) => {
+    const b = document.createElement('div');
+    b.className = 'box ' + (f.field_type === 'image' ? 'photo' : 'text') + (i === sel ? ' sel' : '');
+    b.dataset.i = i;
+    place(b, f);
+    if (f.field_type === 'image') {
+      b.textContent = f.field_name;
+      if (f.shape === 'circle') b.style.borderRadius = '50%';
+      else if (f.shape === 'round') b.style.borderRadius = Math.min(f.width, f.height) * 0.08 * k + 'px';
+    } else {
+      b.textContent = (f.is_upper ? f.field_name.toUpperCase() : f.field_name) || 'Text';
+      b.style.fontFamily = `"${f.font_family}", Arial, sans-serif`;
+      b.style.fontWeight = f.is_bold ? 700 : 400;
+      b.style.color = f.font_color;
+      b.style.fontSize = ((f.font_size || f.height * 0.85) * k) + 'px';
+      b.style.justifyContent = f.align === 'center' ? 'center' : f.align === 'right' ? 'flex-end' : 'flex-start';
+      b.style.textShadow = '0 0 2px #000, 0 0 3px #000';
+    }
+    const h = document.createElement('div'); h.className = 'hd'; b.appendChild(h);
+    b.addEventListener('pointerdown', e => startDrag(e, i, e.target === h));
+    stage.appendChild(b);
+  });
+}
+function place(b, f) {
+  b.style.left = f.x_position / NW * 100 + '%';
+  b.style.top = f.y_position / NH * 100 + '%';
+  b.style.width = f.width / NW * 100 + '%';
+  b.style.height = f.height / NH * 100 + '%';
+}
+
+let drag = null;
+function startDrag(e, i, resize) {
+  e.preventDefault(); e.stopPropagation();
+  if (sel !== i) { sel = i; renderAll(); }
+  snap();
+  const f = F[i], r = img.getBoundingClientRect();
+  drag = { i, resize, sx: e.clientX, sy: e.clientY, ox: f.x_position, oy: f.y_position, ow: f.width, oh: f.height, kx: NW / r.width, ky: NH / r.height };
+}
+window.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const f = F[drag.i], dx = (e.clientX - drag.sx) * drag.kx, dy = (e.clientY - drag.sy) * drag.ky;
+  if (drag.resize) {
+    f.width = Math.round(clamp(drag.ow + dx, 10, NW - f.x_position));
+    f.height = Math.round(clamp(drag.oh + dy, 10, NH - f.y_position));
+  } else {
+    f.x_position = Math.round(clamp(drag.ox + dx, 0, NW - f.width));
+    f.y_position = Math.round(clamp(drag.oy + dy, 0, NH - f.height));
+  }
+  const b = stage.querySelector(`.box[data-i="${drag.i}"]`);
+  if (b) place(b, f);
+  syncNums();
+});
+window.addEventListener('pointerup', () => { if (drag) { drag = null; renderStage(); } });
+
+window.addEventListener('keydown', e => {
+  if (sel < 0 || !['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) return;
+  if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  e.preventDefault();
+  const f = F[sel], st = e.shiftKey ? 10 : 1;
+  snap();
+  if (e.key === 'ArrowLeft') f.x_position = clamp(f.x_position - st, 0, NW - f.width);
+  if (e.key === 'ArrowRight') f.x_position = clamp(f.x_position + st, 0, NW - f.width);
+  if (e.key === 'ArrowUp') f.y_position = clamp(f.y_position - st, 0, NH - f.height);
+  if (e.key === 'ArrowDown') f.y_position = clamp(f.y_position + st, 0, NH - f.height);
+  renderStage(); syncNums();
+});
+
+/* ---------- list + props ---------- */
+function renderAll() { renderStage(); renderList(); renderProps(); }
+function renderList() {
+  document.getElementById('flist').innerHTML = F.map((f, i) =>
+    `<div class="fitem ${i === sel ? 'on' : ''}" onclick="selectF(${i})"><span>${i + 1}. ${esc(f.field_name)} <small class="text-muted">(${f.field_type === 'image' ? 'photo' : 'text'})</small></span>
+     <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();delField(${i})">X</button></div>`).join('')
+    || '<p class="text-muted p-3 mb-0">Abhi koi box nahi. Upar se jodo.</p>';
+}
+function selectF(i) { sel = i; renderAll(); }
+
+function renderProps() {
+  const p = document.getElementById('props');
+  if (sel < 0 || !F[sel]) { p.innerHTML = '<small class="text-muted">Koi box chuno</small>'; return; }
+  const f = F[sel], isT = f.field_type === 'text';
+  let h = `<label>Naam (user ke form mein dikhega)</label><input class="form-control" data-p="field_name" value="${esc(f.field_name)}">
+   <div class="grid4">
+    <div><label>X</label><input type="number" class="form-control" data-p="x_position" data-n="1" value="${f.x_position}"></div>
+    <div><label>Y</label><input type="number" class="form-control" data-p="y_position" data-n="1" value="${f.y_position}"></div>
+    <div><label>Width</label><input type="number" class="form-control" data-p="width" data-n="1" value="${f.width}"></div>
+    <div><label>Height</label><input type="number" class="form-control" data-p="height" data-n="1" value="${f.height}"></div>
+   </div>`;
+  if (isT) {
+    h += `<label>Font style</label><select class="form-select" data-p="font_family" style="font-family:'${f.font_family}'">${D.fonts.map(n =>
+      `<option value="${n}" style="font-family:'${n}'" ${n === f.font_family ? 'selected' : ''}>${n}</option>`).join('')}</select>
+     <div class="grid4">
+      <div><label>Max font size (0 = auto)</label><input type="number" class="form-control" data-p="font_size" data-n="1" value="${f.font_size}"></div>
+      <div><label>Color</label><input type="color" class="form-control" data-p="font_color" value="${f.font_color}"></div>
+     </div>
+     <label>Alignment</label><select class="form-select" data-p="align">
+       ${['left','center','right'].map(a => `<option value="${a}" ${a === f.align ? 'selected' : ''}>${a}</option>`).join('')}</select>
+     <label><input type="checkbox" data-p="is_bold" ${f.is_bold ? 'checked' : ''}> Bold</label>
+     <label><input type="checkbox" data-p="is_upper" ${f.is_upper ? 'checked' : ''}> Hamesha CAPITAL letters</label>`;
+  } else {
+    h += `<label>Shape</label><select class="form-select" data-p="shape">
+      ${[['rect','Rectangle'],['round','Rounded'],['circle','Circle / Oval']].map(s => `<option value="${s[0]}" ${s[0] === f.shape ? 'selected' : ''}>${s[1]}</option>`).join('')}</select>
+     <label>Photo ka background</label><select class="form-select" data-p="remove_bg">
+      ${[['always','Hamesha apne aap hatao (wisher ke liye)'],['optional','User button dabaye to hatao'],['off','Kabhi mat hatao']].map(s => `<option value="${s[0]}" ${s[0] === f.remove_bg ? 'selected' : ''}>${s[1]}</option>`).join('')}</select>`;
+  }
+  p.innerHTML = h;
+}
+function syncNums() {
+  if (sel < 0) return; const f = F[sel];
+  ['x_position','y_position','width','height'].forEach(k => {
+    const el = document.querySelector(`#props [data-p="${k}"]`); if (el && document.activeElement !== el) el.value = f[k];
+  });
+}
+const propsEl = document.getElementById('props');
+propsEl.addEventListener('focusin', () => snap());
+propsEl.addEventListener('input', onProp);
+propsEl.addEventListener('change', onProp);
+function onProp(e) {
+  const t = e.target, k = t.dataset.p; if (!k || sel < 0) return;
+  const f = F[sel];
+  let v = t.type === 'checkbox' ? t.checked : t.dataset.n ? (parseInt(t.value) || 0) : t.value;
+  if (k === 'x_position') v = clamp(v, 0, NW - 10);
+  if (k === 'y_position') v = clamp(v, 0, NH - 10);
+  if (k === 'width') v = clamp(v, 10, NW);
+  if (k === 'height') v = clamp(v, 10, NH);
+  f[k] = v; dirty = true;
+  renderStage();
+  if (k === 'field_name' || e.type === 'change') renderList();
+  if (k === 'font_family') t.style.fontFamily = `"${v}"`;
+}
+
+/* ---------- actions ---------- */
+function addField(type) {
+  if (!NW) return;
+  snap();
+  const isImg = type === 'image', n = F.filter(f => f.field_type === type).length + 1;
+  const w = isImg ? Math.round(NW * 0.25) : Math.round(NW * 0.4);
+  const h = isImg ? Math.round(NW * 0.3) : Math.round(NH * 0.06);
+  F.push(norm({ field_type: type, field_name: (isImg ? 'Photo ' : 'Text ') + n, width: w, height: h,
+    x_position: Math.round((NW - w) / 2), y_position: Math.round((NH - h) / 2),
+    font_color: '#ffffff', shape: isImg ? 'round' : 'rect', align: 'center', is_bold: !isImg }));
+  sel = F.length - 1; renderAll();
+}
+function dupField() {
+  if (sel < 0) return; snap();
+  const c = JSON.parse(JSON.stringify(F[sel]));
+  c.field_name += ' 2'; c.x_position = clamp(c.x_position + 20, 0, NW - c.width); c.y_position = clamp(c.y_position + 20, 0, NH - c.height);
+  F.splice(sel + 1, 0, c); sel++; renderAll();
+}
+function delField(i) {
+  if (!confirm('Ye box delete karna hai?')) return;
+  snap(); F.splice(i, 1); sel = -1; renderAll();
+}
+async function saveAll() {
+  setStatus('Save ho raha hai...');
+  try {
+    const r = await fetch(`/admin/template/${D.template_id}/fields`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: F })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.ok) { dirty = false; setStatus(`Save ho gaya (${j.count} boxes)`); }
+    else setStatus('Save nahi hua: ' + (j.error || r.status), false);
+  } catch (e) { setStatus('Error: ' + e.message, false); }
+}
+window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
 </script>
-<script src="{{ url_for('static', filename='js/builder.js') }}"></script>
 {% endblock %}
